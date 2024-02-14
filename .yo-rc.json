@@ -1,0 +1,21 @@
+{
+  "generator-jhipster": {
+    "additionalSubGenerators": "",
+    "baseName": "encrypt-id",
+    "cli": true,
+    "entities": [],
+    "generators": {
+      "server": {
+        "command": false,
+        "priorities": ["initializing", "prompting", "composing"],
+        "sbs": true,
+        "written": true
+      }
+    },
+    "jhipsterVersion": "8.1.0",
+    "localBlueprint": false,
+    "sampleWritten": true,
+    "skipCommitHook": true,
+    "subGenerators": ["server"]
+  }
+}
