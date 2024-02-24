@@ -31,7 +31,7 @@ const command = {
         ],
         default: 'all',
       }),
-      scope: 'generator',
+      scope: 'blueprint',
     },
     encryptIdEntities: {
       cli: {
@@ -40,11 +40,12 @@ const command = {
       prompt: generator => ({
         when: answers => answers.encryptIdType === 'selected',
         type: 'checkbox',
+        name: 'encryptIdEntities',
         message: 'Please choose the entities to be encrypted',
         choices: generator.getExistingEntities().map(e => e.name),
         default: [],
       }),
-      scope: 'generator',
+      scope: 'blueprint',
     },
   },
 };

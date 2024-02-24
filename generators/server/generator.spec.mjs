@@ -12,9 +12,9 @@ describe('SubGenerator server of encrypt-id JHipster blueprint', () => {
         .run(BLUEPRINT_NAMESPACE)
         .withJHipsterConfig()
         .withOptions({
+          creationTimestamp: '2024-02-01',
           ignoreNeedlesError: true,
           blueprint: 'encrypt-id',
-          creationTimestamp: '2024-02-01'
         })
         .withJHipsterLookup()
         .withParentBlueprintLookup();

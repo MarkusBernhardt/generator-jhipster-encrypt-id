@@ -29,7 +29,8 @@
     "vitest": "vitest"
   },
   "dependencies": {
-    "generator-jhipster": "8.1.0"
+    "change-case": "^5.4.3",
+    "generator-jhipster": "^8.1.0"
   },
   "devDependencies": {
     "ejs-lint": "2.0.0",

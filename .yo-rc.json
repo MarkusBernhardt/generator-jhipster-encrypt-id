@@ -1,10 +1,16 @@
 {
   "generator-jhipster": {
-    "additionalSubGenerators": "",
+    "additionalSubGenerators": "encrypt-id-java",
     "baseName": "encrypt-id",
     "cli": true,
     "entities": [],
     "generators": {
+      "encrypt-id-java": {
+        "command": false,
+        "priorities": ["configuringEachEntity", "postWritingEntities"],
+        "sbs": null,
+        "written": true
+      },
       "server": {
         "command": false,
         "priorities": ["initializing", "prompting", "composing"],
