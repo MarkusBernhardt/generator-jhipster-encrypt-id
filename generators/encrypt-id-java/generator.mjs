@@ -1,4 +1,5 @@
 import BaseApplicationGenerator from 'generator-jhipster/generators/base-application';
+import { javaMainPackageTemplatesBlock } from 'generator-jhipster/generators/java/support';
 import * as changeCase from "change-case";
 
 export default class extends BaseApplicationGenerator {
@@ -8,7 +9,7 @@ export default class extends BaseApplicationGenerator {
 
   get [BaseApplicationGenerator.CONFIGURING_EACH_ENTITY]() {
     return this.asConfiguringEachEntityTaskGroup({
-      async configureEntity({ entityName, entityConfig }) {
+      async configuringEachEntityTemplateTask({ entityName, entityConfig }) {
         const { encryptIdEntities } = this.options;
         entityConfig.enableEncryptId = encryptIdEntities?.includes(entityName) || entityConfig.enableEncryptId;
         if (!entityConfig.enableEncryptId) return;
@@ -16,6 +17,31 @@ export default class extends BaseApplicationGenerator {
         if (entityConfig.dto !== "mapstruct") {
           throw new Error('DTO with mapstruct required for entity ' + entityName);
         }
+
+        if (entityConfig.service !== 'serviceImpl') {
+          throw new Error('Service with serviceImpl required for entity ' + entityName);
+        }
+      },
+    });
+  }
+
+  get [BaseApplicationGenerator.WRITING_ENTITIES]() {
+    return this.asWritingEntitiesTaskGroup({
+      async writingEntitiesTemplateTask({ application, entities }) {
+        await Promise.all(
+          entities
+            .filter(e => e.enableEncryptId)
+            .map(e =>
+              this.writeFiles({
+                blocks: [
+                  javaMainPackageTemplatesBlock({
+                    templates: ['service/cipher/_persistClass_Cipher.java'],
+                  }),
+                ],
+                context: { ...application, ...e },
+              }),
+            ),
+        );
       },
     });
   }
@@ -109,16 +135,33 @@ export default class extends BaseApplicationGenerator {
   }
 
   convertService(mainJavaPackageDir, entity) {
-    const replaceNeedles = ['findOne(Long id)', 'delete(Long id)'];
-
     const { persistClass, entityPackage = '' } = entity;
-    if(entity.service === 'serviceImpl') {
-      const serviceImplPath = `${mainJavaPackageDir}/${entityPackage}service/impl/${persistClass}ServiceImpl.java`;
-      this.replaceLongToStringNeedles(serviceImplPath, replaceNeedles);
-    }
 
-    const servicePath = `${mainJavaPackageDir}/${entityPackage}service/${persistClass}Service.java`;
-    this.replaceLongToStringNeedles(servicePath, replaceNeedles);
+    const regExNeedles = [
+      {
+        regex: new RegExp(`import de.scmb.sultan.service.dto.${persistClass}DTO;$`, 'gm'),
+        content: `import de.scmb.sultan.service.cipher.${persistClass}Cipher;\nimport de.scmb.sultan.service.dto.${persistClass}DTO;\n`
+      },
+      {
+        regex: new RegExp(`private final ${persistClass}Mapper ${changeCase.camelCase(persistClass)}Mapper;$`, 'gm'),
+        content: `private final ${persistClass}Cipher ${changeCase.camelCase(persistClass)}Cipher;\n\nprivate final ${persistClass}Mapper ${changeCase.camelCase(persistClass)}Mapper;\n`
+      },
+      {
+        regex: new RegExp(`        ${persistClass}Mapper ${changeCase.camelCase(persistClass)}Mapper`, 'gm'),
+        content: `${persistClass}Mapper ${changeCase.camelCase(persistClass)}Mapper, ${persistClass}Cipher ${changeCase.camelCase(persistClass)}Cipher`
+      },
+      {
+        regex: new RegExp(`this.${changeCase.camelCase(persistClass)}Mapper = ${changeCase.camelCase(persistClass)}Mapper;`, 'gm'),
+        content: `this.${changeCase.camelCase(persistClass)}Mapper = ${changeCase.camelCase(persistClass)}Mapper;\nthis.${changeCase.camelCase(persistClass)}Cipher = ${changeCase.camelCase(persistClass)}Cipher;`
+      },
+      {
+        regex: new RegExp(`${changeCase.camelCase(persistClass)}DTO.getId\\(\\)`, 'gm'),
+        content: `${changeCase.camelCase(persistClass)}Cipher.decrypt(${changeCase.camelCase(persistClass)}DTO.getId())`
+      },
+    ];
+
+    const serviceImplPath = `${mainJavaPackageDir}/${entityPackage}service/impl/${persistClass}ServiceImpl.java`;
+    this.replaceRegexNeedles(serviceImplPath, regExNeedles);
   }
 
   replaceRegexNeedles(filePath, replaceNeedles) {

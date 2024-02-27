@@ -7,7 +7,7 @@
     "generators": {
       "encrypt-id-java": {
         "command": false,
-        "priorities": ["configuringEachEntity", "postWritingEntities"],
+        "priorities": ["configuringEachEntity", "writing", "postWriting", "postWritingEntities"],
         "sbs": null,
         "written": true
       },

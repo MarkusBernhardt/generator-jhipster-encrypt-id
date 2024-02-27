@@ -1,0 +1,12 @@
+package <%=packageName%>.service.cipher;
+
+public class <%=persistClass%>Cipher {
+
+    public String encrypt(long id) {
+        return "id" + Long.toString(id);
+    }
+
+    public long decrypt(String id) {
+        return Long.parseLong(id.substring(2));
+    }
+}
