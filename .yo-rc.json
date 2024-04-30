@@ -1,11 +1,11 @@
 {
   "generator-jhipster": {
-    "additionalSubGenerators": "scmb-encrypt-id-java",
-    "baseName": "scmb-encrypt-id",
+    "additionalSubGenerators": "encrypt-id-java",
+    "baseName": "encrypt-id",
     "cli": true,
     "entities": [],
     "generators": {
-      "scmb-encrypt-id-java": {
+      "encrypt-id-java": {
         "command": false,
         "priorities": ["configuringEachEntity", "writing", "postWriting", "postWritingEntities"],
         "sbs": null,

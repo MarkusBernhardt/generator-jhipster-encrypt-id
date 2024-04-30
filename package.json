@@ -1,8 +1,8 @@
 {
-  "name": "generator-jhipster-scmb-encrypt-id",
+  "name": "generator-jhipster-encrypt-id",
   "version": "0.0.0",
   "private": true,
-  "description": "Description for Scmb Encrypt Id",
+  "description": "Description for Encrypt Id",
   "keywords": [
     "yeoman-generator",
     "jhipster-blueprint",
@@ -11,7 +11,7 @@
   "license": "UNLICENSED",
   "type": "module",
   "bin": {
-    "jhipster-scmb-encrypt-id": "cli/cli.cjs"
+    "jhipster-encrypt-id": "cli/cli.cjs"
   },
   "files": [
     "cli",

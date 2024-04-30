@@ -23,7 +23,7 @@ const blueprint = packageFolderName.startsWith('jhipster-') ? `generator-${packa
       [blueprint]: version,
     },
     printBlueprintLogo: () => {
-      console.log('===================== JHipster scmb-encrypt-id =====================');
+      console.log('===================== JHipster encrypt-id =====================');
       console.log('');
     },
     lookups: [{ packagePaths: [packagePath], lookups: ['generators'] }],

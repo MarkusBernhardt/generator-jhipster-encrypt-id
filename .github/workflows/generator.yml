@@ -3,7 +3,7 @@ on: [push, pull_request]
 permissions:
   contents: read
 jobs:
-  scmb-encrypt-id:
+  encrypt-id:
     name: npm-test
     runs-on: ubuntu-latest
     timeout-minutes: 10
