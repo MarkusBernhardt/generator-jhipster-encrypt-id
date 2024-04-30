@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`SubGenerator server of encrypt-id JHipster blueprint > run > should succeed 1`] = `
+exports[`SubGenerator server of scmb-encrypt-id JHipster blueprint > run > should succeed 1`] = `
 {
   ".devcontainer/Dockerfile": {
     "stateCleared": "modified",

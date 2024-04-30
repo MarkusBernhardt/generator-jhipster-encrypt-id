@@ -103,7 +103,7 @@ export default class extends BaseApplicationGenerator {
       },
       {
         regex: new RegExp('^application:$', 'gm'),
-        content: 'application:\n  encrypt-id:\n    key: "change me"'
+        content: 'application:\n  scmb-encrypt-id:\n    key: "change me"'
       },
     ];
 
