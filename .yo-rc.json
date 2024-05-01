@@ -1,10 +1,22 @@
 {
   "generator-jhipster": {
-    "additionalSubGenerators": "encrypt-id-java",
+    "additionalSubGenerators": "encrypt-id-angular,encrypt-id-java",
     "baseName": "encrypt-id",
     "cli": true,
     "entities": [],
     "generators": {
+      "client": {
+        "command": false,
+        "priorities": ["composing"],
+        "sbs": true,
+        "written": true
+      },
+      "encrypt-id-angular": {
+        "command": false,
+        "priorities": ["postWritingEntities"],
+        "sbs": null,
+        "written": true
+      },
       "encrypt-id-java": {
         "command": false,
         "priorities": ["configuringEachEntity", "writing", "postWriting", "postWritingEntities"],
@@ -18,10 +30,10 @@
         "written": true
       }
     },
-    "jhipsterVersion": "8.1.0",
+    "jhipsterVersion": "8.3.0",
     "localBlueprint": false,
     "sampleWritten": true,
     "skipCommitHook": true,
-    "subGenerators": ["server"]
+    "subGenerators": ["client","server"]
   }
 }
