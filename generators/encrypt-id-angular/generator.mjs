@@ -10,6 +10,7 @@ export default class extends BaseApplicationGenerator {
     return this.asPostWritingTaskGroup({
       async postWritingTemplateTask({ application: { clientSrcDir } }) {
         encryptdUtil.convertAngularUserManagement(this, clientSrcDir);
+        encryptdUtil.convertAngularUserManagementList(this, clientSrcDir);
       },
     });
   }
