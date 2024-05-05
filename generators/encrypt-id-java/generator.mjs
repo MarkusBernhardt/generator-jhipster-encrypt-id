@@ -72,6 +72,7 @@ export default class extends BaseApplicationGenerator {
         for (const entity of entities.filter(e => e.enableEncryptId)) {
           encryptdUtil.convertJavaDto(this, mainJavaPackageDir, testJavaPackageDir, entity);
           encryptdUtil.convertJavaMapper(this, mainJavaPackageDir, packageName, entity);
+          encryptdUtil.convertJavaMapperTest(this, testJavaPackageDir, packageName, entity);
           encryptdUtil.convertJavaResource(this, mainJavaPackageDir, packageName, entity);
           encryptdUtil.convertJavaService(this, mainJavaPackageDir, packageName, entity);
         }
