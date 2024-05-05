@@ -352,12 +352,120 @@ function convertJavaUserMapper(generator, mainJavaPackageDir, packageName) {
       content: `import ${packageName}.service.cipher.UserCipher;\nimport ${packageName}.service.dto.UserDTO;\n`,
     },
     {
+      regex: /public class UserMapper \{/gm,
+      content: `public class UserMapper {\n\nprivate final UserCipher userCipher;\npublic UserMapper(UserCipher userCipher) {\nthis.userCipher = userCipher;\n}`,
+    },
+    {
       regex: /user.setId\(userDTO.getId\(\)\);/gm,
-      content: `user.setId(UserCipher.decrypt(userDTO.getId()));`,
+      content: `user.setId(userCipher.decrypt(userDTO.getId()));`,
     },
     {
       regex: /userDto.setId\(user.getId\(\)\);/gm,
-      content: `userDto.setId(UserCipher.encrypt(user.getId()));`,
+      content: `userDto.setId(userCipher.encrypt(user.getId()));`,
+    },
+    {
+      regex: /DTO\(user\);/gm,
+      content: `DTO(user, userCipher);`,
+    },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
+}
+
+function convertJavaUserMapperTest(generator, testJavaPackageDir, packageName) {
+  const path = `${testJavaPackageDir}/service/mapper/UserMapperTest.java`;
+
+  const regExNeedles = [
+    {
+      regex: new RegExp(`import ${packageName}.service.dto.UserDTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.UserCipher;\nimport ${packageName}.service.dto.UserDTO;\n`,
+    },
+    {
+      regex: /userMapper = new UserMapper\(/gm,
+      content: `UserCipher userCipher = new UserCipher();\nuserMapper = new UserMapper(userCipher`,
+    },
+    {
+      regex: /userDto = new AdminUserDTO\(user/gm,
+      content: `userDto = new AdminUserDTO(user, userCipher`,
+    },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
+}
+
+function convertJavaAccountResource(generator, mainJavaPackageDir, packageName) {
+  const path = `${mainJavaPackageDir}/web/rest/AccountResource.java`;
+
+  const regExNeedles = [
+    {
+      regex: new RegExp(`import ${packageName}.service.dto.AdminUserDTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.UserCipher;\nimport ${packageName}.service.dto.AdminUserDTO;\n`,
+    },
+    {
+      regex: /private final MailService mailService;/gm,
+      content: `private final MailService mailService;\n\nprivate final UserCipher userCipher;`,
+    },
+    {
+      regex: /MailService mailService\) \{/gm,
+      content: `MailService mailService, UserCipher userCipher) {`,
+    },
+    {
+      regex: /this.mailService = mailService;/gm,
+      content: `this.mailService = mailService;\nthis.userCipher = userCipher;`,
+    },
+    {
+      regex: /\(AdminUserDTO::new\)/gm,
+      content: `(user -> new AdminUserDTO(user, userCipher))`,
+    },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
+}
+
+function convertJavaAccountResourceIT(generator, testJavaPackageDir, packageName) {
+  const path = `${testJavaPackageDir}/web/rest/AccountResourceIT.java`;
+
+  const regExNeedles = [
+    {
+      regex: new RegExp(`import ${packageName}.service.dto.AdminUserDTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.UserCipher;\nimport ${packageName}.service.dto.AdminUserDTO;\n`,
+    },
+    {
+      regex: /private MockMvc restAccountMockMvc;/gm,
+      content: `private MockMvc restAccountMockMvc;\n\n@Autowired\nprivate UserCipher userCipher;`,
+    },
+    {
+      regex: /new AdminUserDTO\(testUser4.orElseThrow\(\)/gm,
+      content: `new AdminUserDTO(testUser4.orElseThrow(), userCipher`,
+    },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
+}
+
+function convertJavaUserResource(generator, mainJavaPackageDir, packageName) {
+  const path = `${mainJavaPackageDir}/web/rest/UserResource.java`;
+
+  const regExNeedles = [
+    {
+      regex: new RegExp(`import ${packageName}.service.dto.AdminUserDTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.UserCipher;\nimport ${packageName}.service.dto.AdminUserDTO;\n`,
+    },
+    {
+      regex: /private final MailService mailService;/gm,
+      content: `private final MailService mailService;\n\nprivate final UserCipher userCipher;`,
+    },
+    {
+      regex: /MailService mailService\) \{/gm,
+      content: `MailService mailService, UserCipher userCipher) {`,
+    },
+    {
+      regex: /this.mailService = mailService;/gm,
+      content: `this.mailService = mailService;\nthis.userCipher = userCipher;`,
+    },
+    {
+      regex: /\(AdminUserDTO::new\)/gm,
+      content: `(user -> new AdminUserDTO(user, userCipher))`,
     },
   ];
 
@@ -389,8 +497,12 @@ function convertJavaUserService(generator, mainJavaPackageDir, packageName) {
       content: `userCipher.decrypt(userDTO.getId())`,
     },
     {
-      regex: /AdminUserDTO::new/gm,
-      content: `user -> new AdminUserDTO(user, userCipher)`,
+      regex: /\(AdminUserDTO::new\)/gm,
+      content: `(user -> new AdminUserDTO(user, userCipher))`,
+    },
+    {
+      regex: /\(UserDTO::new\)/gm,
+      content: `(user -> new UserDTO(user, userCipher))`,
     },
   ];
 
@@ -407,19 +519,19 @@ function convertJavaUserResourceIT(generator, testJavaPackageDir, packageName) {
     },
     {
       regex: /AdminUserDTO\(\);\n {8}user.setId\(DEFAULT_ID\)/gm,
-      content: `AdminUserDTO();\n        user.setId(UserCipher.encrypt(DEFAULT_ID))`,
+      content: `AdminUserDTO();\n        user.setId(new UserCipher().encrypt(DEFAULT_ID))`,
     },
     {
       regex: /userDTO.setId\(DEFAULT_ID\)/gm,
-      content: `userDTO.setId(UserCipher.encrypt(DEFAULT_ID))`,
+      content: `userDTO.setId(new UserCipher().encrypt(DEFAULT_ID))`,
     },
     {
       regex: /user.setId\(updatedUser.getId\(\)\)/gm,
-      content: `user.setId(UserCipher.encrypt(updatedUser.getId()))`,
+      content: `user.setId(new UserCipher().encrypt(updatedUser.getId()))`,
     },
     {
       regex: /isEqualTo\(DEFAULT_ID\)/gm,
-      content: `isEqualTo(UserCipher.encrypt(DEFAULT_ID))`,
+      content: `isEqualTo(new UserCipher().encrypt(DEFAULT_ID))`,
     },
   ];
 
@@ -434,6 +546,8 @@ export {
   convertAngularUserManagement,
   convertAngularUserManagementList,
   convertAngularUpdateHtml,
+  convertJavaAccountResource,
+  convertJavaAccountResourceIT,
   convertJavaApplicationProperties,
   convertJavaApplicationYml,
   convertJavaDto,
@@ -442,6 +556,8 @@ export {
   convertJavaService,
   convertJavaUserDTO,
   convertJavaUserMapper,
+  convertJavaUserMapperTest,
+  convertJavaUserResource,
   convertJavaUserResourceIT,
   convertJavaUserService,
 };

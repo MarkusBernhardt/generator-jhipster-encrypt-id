@@ -52,10 +52,14 @@ export default class extends BaseApplicationGenerator {
   get [BaseApplicationGenerator.POST_WRITING]() {
     return this.asPostWritingTaskGroup({
       async postWritingTemplateTask({ application: { mainJavaPackageDir, mainJavaResourceDir, testJavaPackageDir, packageName } }) {
+        encryptdUtil.convertJavaAccountResource(this, mainJavaPackageDir, packageName);
+        encryptdUtil.convertJavaAccountResourceIT(this, testJavaPackageDir, packageName);
         encryptdUtil.convertJavaApplicationProperties(this, mainJavaPackageDir);
         encryptdUtil.convertJavaApplicationYml(this, mainJavaResourceDir);
         encryptdUtil.convertJavaUserDTO(this, mainJavaPackageDir, packageName);
         encryptdUtil.convertJavaUserMapper(this, mainJavaPackageDir, packageName);
+        encryptdUtil.convertJavaUserMapperTest(this, testJavaPackageDir, packageName);
+        encryptdUtil.convertJavaUserResource(this, mainJavaPackageDir, packageName);
         encryptdUtil.convertJavaUserResourceIT(this, testJavaPackageDir, packageName);
         encryptdUtil.convertJavaUserService(this, mainJavaPackageDir, packageName);
       },
