@@ -1,0 +1,19 @@
+package <%=packageName%>.config;
+
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class EncryptIdConfiguration {
+
+    private static String key;
+
+    public EncryptIdConfiguration(
+        ApplicationProperties applicationProperties
+    ) {
+        key = applicationProperties.getEncryptId().getKey();
+    }
+
+    public static String getKey() {
+        return key;
+    }
+}

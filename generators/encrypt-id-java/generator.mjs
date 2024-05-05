@@ -35,7 +35,10 @@ export default class extends BaseApplicationGenerator {
               this.writeFiles({
                 blocks: [
                   javaMainPackageTemplatesBlock({
-                    templates: ['service/cipher/_persistClass_Cipher.java'],
+                    templates: [
+                      'service/cipher/_persistClass_Cipher.java',
+                      'config/EncryptIdConfiguration.java'
+                    ],
                   }),
                 ],
                 context: { ...application, ...e },

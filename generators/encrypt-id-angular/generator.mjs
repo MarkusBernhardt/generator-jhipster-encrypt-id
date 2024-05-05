@@ -6,6 +6,14 @@ export default class extends BaseApplicationGenerator {
     await this.dependsOnJHipster('angular');
   }
 
+  get [BaseApplicationGenerator.POST_WRITING]() {
+    return this.asPostWritingTaskGroup({
+      async postWritingTemplateTask({ application: { clientSrcDir } }) {
+        encryptdUtil.convertAngularUserManagement(this, clientSrcDir);
+      },
+    });
+  }
+
   get [BaseApplicationGenerator.POST_WRITING_ENTITIES]() {
     return this.asPostWritingEntitiesTaskGroup({
       async postWritingEntitiesTemplateTask({ application: { clientSrcDir }, entities }) {

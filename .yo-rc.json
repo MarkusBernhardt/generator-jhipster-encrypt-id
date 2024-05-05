@@ -13,7 +13,7 @@
       },
       "encrypt-id-angular": {
         "command": false,
-        "priorities": ["postWritingEntities"],
+        "priorities": ["postWriting", "postWritingEntities"],
         "sbs": null,
         "written": true
       },

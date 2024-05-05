@@ -67,6 +67,18 @@ function convertAngularService(generator, clientSrcDir, entity) {
   replaceNumberToStringNeedles(generator, path, ['find(id: number)', 'delete(id: number)', '>): number {']);
 }
 
+function convertAngularUserManagement(generator, clientSrcDir) {
+  const path = `${clientSrcDir}/app/admin/user-management/user-management.model.ts`;
+
+  replaceNumberToStringNeedles(generator, path, ['id: number | null']);
+}
+
+function convertAngularUserManagementList(generator, clientSrcDir) {
+  const path = `${clientSrcDir}/app/admin/user-management/list/user-management.component.ts`;
+
+  replaceNumberToStringNeedles(generator, path, [', item: User): number']);
+}
+
 function convertAngularUpdateHtml(generator, clientSrcDir, entity) {
   const { persistClass } = entity;
   const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/update/${changeCase.kebabCase(
@@ -345,6 +357,8 @@ export {
   convertAngularDeleteDialog,
   convertAngularModel,
   convertAngularService,
+  convertAngularUserManagement,
+  convertAngularUserManagementList,
   convertAngularUpdateHtml,
   convertJavaApplicationProperties,
   convertJavaApplicationYml,
