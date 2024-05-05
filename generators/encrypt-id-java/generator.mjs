@@ -30,7 +30,7 @@ export default class extends BaseApplicationGenerator {
       async writingEntitiesTemplateTask({ application, entities }) {
         await Promise.all(
           entities
-            .filter(e => e.enableEncryptId)
+            .filter(e => e.enableEncryptId || e.persistClass === 'User')
             .map(e =>
               this.writeFiles({
                 blocks: [
@@ -48,9 +48,13 @@ export default class extends BaseApplicationGenerator {
 
   get [BaseApplicationGenerator.POST_WRITING]() {
     return this.asPostWritingTaskGroup({
-      async postWritingTemplateTask({ application: { mainJavaPackageDir, mainJavaResourceDir } }) {
+      async postWritingTemplateTask({ application: { mainJavaPackageDir, mainJavaResourceDir, testJavaPackageDir, packageName } }) {
         encryptdUtil.convertJavaApplicationProperties(this, mainJavaPackageDir);
         encryptdUtil.convertJavaApplicationYml(this, mainJavaResourceDir);
+        encryptdUtil.convertJavaUserDTO(this, mainJavaPackageDir, packageName);
+        encryptdUtil.convertJavaUserMapper(this, mainJavaPackageDir, packageName);
+        encryptdUtil.convertJavaUserResourceIT(this, testJavaPackageDir, packageName);
+        encryptdUtil.convertJavaUserService(this, mainJavaPackageDir, packageName);
       },
     });
   }

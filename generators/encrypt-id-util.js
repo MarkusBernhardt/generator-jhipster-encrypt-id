@@ -44,7 +44,9 @@ function convertAngularComponent(generator, clientSrcDir, entity) {
 
 function convertAngularDeleteDialog(generator, clientSrcDir, entity) {
   const { persistClass } = entity;
-  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/delete/${changeCase.kebabCase(persistClass)}-delete-dialog.component.ts`;
+  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/delete/${changeCase.kebabCase(
+    persistClass,
+  )}-delete-dialog.component.ts`;
 
   replaceNumberToStringNeedles(generator, path, ['confirmDelete(id: number)']);
 }
@@ -58,14 +60,18 @@ function convertAngularModel(generator, clientSrcDir, entity) {
 
 function convertAngularService(generator, clientSrcDir, entity) {
   const { persistClass } = entity;
-  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/service/${changeCase.kebabCase(persistClass)}.service.ts`;
+  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/service/${changeCase.kebabCase(
+    persistClass,
+  )}.service.ts`;
 
   replaceNumberToStringNeedles(generator, path, ['find(id: number)', 'delete(id: number)', '>): number {']);
 }
 
 function convertAngularUpdateHtml(generator, clientSrcDir, entity) {
   const { persistClass } = entity;
-  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/update/${changeCase.kebabCase(persistClass)}-update.component.html`;
+  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/update/${changeCase.kebabCase(
+    persistClass,
+  )}-update.component.html`;
 
   replaceNumberToTextNeedles(generator, path, ['<input type="number"']);
 }
@@ -146,20 +152,12 @@ function convertJavaMapper(generator, mainJavaPackageDir, packageName, entity) {
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.${persistClass}DTO;$`, 'gm'),
-      content: `import ${packageName}.service.cipher.${persistClass}Cipher;\nimport ${packageName}.service.dto.${persistClass}DTO;\nimport org.springframework.beans.factory.annotation.Autowired;\n`,
-    },
-    {
       regex: /public interface/gm,
       content: `public abstract class`,
     },
     {
       regex: /extends/gm,
       content: `implements`,
-    },
-    {
-      regex: /> {/gm,
-      content: `> { \n@Autowired\nprotected ${persistClass}Cipher ${changeCase.camelCase(persistClass)}Cipher;`,
     },
     {
       regex: /^ *([A-Za-z0-9]+ toDto[A-Za-z0-9]+)/gm,
@@ -174,36 +172,24 @@ function convertJavaMapper(generator, mainJavaPackageDir, packageName, entity) {
   if (findRegexNeedle(generator, resourcePath, `${persistClass} toEntity`)) {
     regExNeedles.push({
       regex: new RegExp(`${persistClass} toEntity`, 'gm'),
-      content: `@Mapping(target = "id", expression = "java(${changeCase.camelCase(
-        persistClass,
-      )}Cipher.decrypt(dto.getId()))")\npublic abstract ${persistClass} toEntity`,
+      content: `@Mapping(target = "id", expression = "java(${packageName}.service.cipher.${persistClass}Cipher.decrypt(dto.getId()))")\npublic abstract ${persistClass} toEntity`,
     });
   } else {
     regExNeedles.push({
-      regex: new RegExp(`protected ${persistClass}Cipher ${changeCase.camelCase(persistClass)}Cipher;`, 'gm'),
-      content: `protected ${persistClass}Cipher ${changeCase.camelCase(
-        persistClass,
-      )}Cipher;\n\n@Mapping(target = "id", expression = "java(${changeCase.camelCase(
-        persistClass,
-      )}Cipher.decrypt(dto.getId()))")\npublic abstract ${persistClass} toEntity(${persistClass}DTO dto);`,
+      regex: /}/gm,
+      content: `@Mapping(target = "id", expression = "java(${packageName}.service.cipher.${persistClass}Cipher.decrypt(dto.getId()))")\npublic abstract ${persistClass} toEntity(${persistClass}DTO dto);\n}`,
     });
   }
 
   if (findRegexNeedle(generator, resourcePath, `${persistClass}DTO toDto`)) {
     regExNeedles.push({
       regex: new RegExp(`${persistClass}DTO toDto`, 'gm'),
-      content: `@Mapping(target = "id", expression = "java(${changeCase.camelCase(
-        persistClass,
-      )}Cipher.encrypt(s.getId()))")\npublic abstract ${persistClass}DTO toDto`,
+      content: `@Mapping(target = "id", expression = "java(${packageName}.service.cipher.${persistClass}Cipher.encrypt(s.getId()))")\npublic abstract ${persistClass}DTO toDto`,
     });
   } else {
     regExNeedles.push({
-      regex: new RegExp(`protected ${persistClass}Cipher ${changeCase.camelCase(persistClass)}Cipher;`, 'gm'),
-      content: `protected ${persistClass}Cipher ${changeCase.camelCase(
-        persistClass,
-      )}Cipher;\n\n@Mapping(target = "id", expression = "java(${changeCase.camelCase(
-        persistClass,
-      )}Cipher.encrypt(s.getId()))")\npublic abstract ${persistClass}DTO toDto(${persistClass} s);`,
+      regex: /}/gm,
+      content: `@Mapping(target = "id", expression = "java(${packageName}.service.cipher.${persistClass}Cipher.encrypt(s.getId()))")\npublic abstract ${persistClass}DTO toDto(${persistClass} s);\n}`,
     });
   }
 
@@ -222,26 +208,8 @@ function convertJavaResource(generator, mainJavaPackageDir, packageName, entity)
       content: `import ${packageName}.service.cipher.${persistClass}Cipher;\nimport ${packageName}.service.dto.${persistClass}DTO;\n`,
     },
     {
-      regex: new RegExp(`private final ${persistClass}Service ${changeCase.camelCase(persistClass)}Service;$`, 'gm'),
-      content: `private final ${persistClass}Cipher ${changeCase.camelCase(
-        persistClass,
-      )}Cipher;\n\nprivate final ${persistClass}Service ${changeCase.camelCase(persistClass)}Service;\n`,
-    },
-    {
-      regex: new RegExp(`        ${persistClass}Service ${changeCase.camelCase(persistClass)}Service`, 'gm'),
-      content: `${persistClass}Cipher ${changeCase.camelCase(persistClass)}Cipher, ${persistClass}Service ${changeCase.camelCase(
-        persistClass,
-      )}Service`,
-    },
-    {
-      regex: new RegExp(`this.${changeCase.camelCase(persistClass)}Service = ${changeCase.camelCase(persistClass)}Service;`, 'gm'),
-      content: `this.${changeCase.camelCase(persistClass)}Cipher = ${changeCase.camelCase(
-        persistClass,
-      )}Cipher;\nthis.${changeCase.camelCase(persistClass)}Service = ${changeCase.camelCase(persistClass)}Service;`,
-    },
-    {
       regex: new RegExp(`${changeCase.camelCase(persistClass)}Repository.existsById\\(id\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}Repository.existsById(${changeCase.camelCase(persistClass)}Cipher.decrypt(id))`,
+      content: `${changeCase.camelCase(persistClass)}Repository.existsById(${persistClass}Cipher.decrypt(id))`,
     },
   ];
 
@@ -263,44 +231,113 @@ function convertJavaService(generator, mainJavaPackageDir, packageName, entity) 
       content: `import ${packageName}.service.cipher.${persistClass}Cipher;\nimport ${packageName}.service.dto.${persistClass}DTO;\n`,
     },
     {
-      regex: new RegExp(`private final ${persistClass}Repository ${changeCase.camelCase(persistClass)}Repository;$`, 'gm'),
-      content: `private final ${persistClass}Cipher ${changeCase.camelCase(
-        persistClass,
-      )}Cipher;\n\nprivate final ${persistClass}Repository ${changeCase.camelCase(persistClass)}Repository;\n`,
-    },
-    {
-      regex: new RegExp(`        ${persistClass}Repository ${changeCase.camelCase(persistClass)}Repository`, 'gm'),
-      content: `${persistClass}Cipher ${changeCase.camelCase(persistClass)}Cipher, ${persistClass}Repository ${changeCase.camelCase(
-        persistClass,
-      )}Repository`,
-    },
-    {
-      regex: new RegExp(`this.${changeCase.camelCase(persistClass)}Repository = ${changeCase.camelCase(persistClass)}Repository;`, 'gm'),
-      content: `this.${changeCase.camelCase(persistClass)}Cipher = ${changeCase.camelCase(
-        persistClass,
-      )}Cipher;\nthis.${changeCase.camelCase(persistClass)}Repository = ${changeCase.camelCase(persistClass)}Repository;`,
-    },
-    {
       regex: new RegExp(`${changeCase.camelCase(persistClass)}DTO.getId\\(\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}Cipher.decrypt(${changeCase.camelCase(persistClass)}DTO.getId())`,
+      content: `${persistClass}Cipher.decrypt(${changeCase.camelCase(persistClass)}DTO.getId())`,
     },
     {
       regex: new RegExp(`${changeCase.camelCase(persistClass)}Repository.findById\\(id\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}Repository.findById(${changeCase.camelCase(persistClass)}Cipher.decrypt(id))`,
+      content: `${changeCase.camelCase(persistClass)}Repository.findById(${persistClass}Cipher.decrypt(id))`,
     },
     {
       regex: new RegExp(`${changeCase.camelCase(persistClass)}Repository.deleteById\\(id\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}Repository.deleteById(${changeCase.camelCase(persistClass)}Cipher.decrypt(id))`,
+      content: `${changeCase.camelCase(persistClass)}Repository.deleteById(${persistClass}Cipher.decrypt(id))`,
     },
     {
       regex: new RegExp(`${changeCase.camelCase(persistClass)}Repository.findOneWithEagerRelationships\\(id\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}Repository.findOneWithEagerRelationships(${changeCase.camelCase(
-        persistClass,
-      )}Cipher.decrypt(id))`,
+      content: `${changeCase.camelCase(persistClass)}Repository.findOneWithEagerRelationships(${persistClass}Cipher.decrypt(id))`,
     },
   ];
 
   replaceRegexNeedles(generator, serviceImplPath, regExNeedles);
+}
+
+function convertJavaUserDTO(generator, mainJavaPackageDir, packageName) {
+  const userPath = `${mainJavaPackageDir}/service/dto/UserDTO.java`;
+  const adminUserPath = `${mainJavaPackageDir}/service/dto/AdminUserDTO.java`;
+
+  replaceLongToStringNeedles(generator, userPath, ['Long id', 'Long getId()', 'setId(Long id)']);
+  replaceLongToStringNeedles(generator, adminUserPath, ['Long id', 'Long getId()', 'setId(Long id)']);
+
+  const regExNeedles = [
+    {
+      regex: /import java.io.Serializable;/gm,
+      content: `import ${packageName}.service.cipher.UserCipher;\nimport java.io.Serializable;\n`,
+    },
+    {
+      regex: /this.id = user.getId\(\)/gm,
+      content: `this.id = UserCipher.encrypt(user.getId())`,
+    },
+  ];
+
+  replaceRegexNeedles(generator, userPath, regExNeedles);
+  replaceRegexNeedles(generator, adminUserPath, regExNeedles);
+}
+
+function convertJavaUserMapper(generator, mainJavaPackageDir, packageName) {
+  const path = `${mainJavaPackageDir}/service/mapper/UserMapper.java`;
+
+  const regExNeedles = [
+    {
+      regex: new RegExp(`import ${packageName}.service.dto.UserDTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.UserCipher;\nimport ${packageName}.service.dto.UserDTO;\n`,
+    },
+    {
+      regex: /user.setId\(userDTO.getId\(\)\);/gm,
+      content: `user.setId(UserCipher.decrypt(userDTO.getId()));`,
+    },
+    {
+      regex: /userDto.setId\(user.getId\(\)\);/gm,
+      content: `userDto.setId(UserCipher.encrypt(user.getId()));`,
+    },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
+}
+
+function convertJavaUserService(generator, mainJavaPackageDir, packageName) {
+  const path = `${mainJavaPackageDir}/service/UserService.java`;
+
+  const regExNeedles = [
+    {
+      regex: new RegExp(`import ${packageName}.service.dto.UserDTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.UserCipher;\nimport ${packageName}.service.dto.UserDTO;\n`,
+    },
+    {
+      regex: /userDTO.getId\(\)/gm,
+      content: `UserCipher.decrypt(userDTO.getId())`,
+    },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
+}
+
+function convertJavaUserResourceIT(generator, testJavaPackageDir, packageName) {
+  const path = `${testJavaPackageDir}/web/rest/UserResourceIT.java`;
+
+  const regExNeedles = [
+    {
+      regex: new RegExp(`import ${packageName}.service.dto.AdminUserDTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.UserCipher;\nimport ${packageName}.service.dto.AdminUserDTO;\n`,
+    },
+    {
+      regex: /AdminUserDTO\(\);\n {8}user.setId\(DEFAULT_ID\)/gm,
+      content: `AdminUserDTO();\n        user.setId(UserCipher.encrypt(DEFAULT_ID))`,
+    },
+    {
+      regex: /userDTO.setId\(DEFAULT_ID\)/gm,
+      content: `userDTO.setId(UserCipher.encrypt(DEFAULT_ID))`,
+    },
+    {
+      regex: /user.setId\(updatedUser.getId\(\)\)/gm,
+      content: `user.setId(UserCipher.encrypt(updatedUser.getId()))`,
+    },
+    {
+      regex: /isEqualTo\(DEFAULT_ID\)/gm,
+      content: `isEqualTo(UserCipher.encrypt(DEFAULT_ID))`,
+    },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
 }
 
 export {
@@ -315,4 +352,8 @@ export {
   convertJavaMapper,
   convertJavaResource,
   convertJavaService,
+  convertJavaUserDTO,
+  convertJavaUserMapper,
+  convertJavaUserResourceIT,
+  convertJavaUserService,
 };

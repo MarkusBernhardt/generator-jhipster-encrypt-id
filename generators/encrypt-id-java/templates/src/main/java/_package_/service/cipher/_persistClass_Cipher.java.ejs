@@ -1,15 +1,18 @@
 package <%=packageName%>.service.cipher;
 
-import org.springframework.stereotype.Component;
-
-@Component
 public class <%=persistClass%>Cipher {
 
-    public String encrypt(long id) {
-        return "id" + Long.toString(id);
+    public static String encrypt(Long id) {
+        if(id == null) {
+            return null;
+        }
+        return "id" + id.toString();
     }
 
-    public long decrypt(String id) {
+    public static Long decrypt(String id) {
+        if(id == null) {
+            return null;
+        }
         return Long.parseLong(id.substring(2));
     }
 }
