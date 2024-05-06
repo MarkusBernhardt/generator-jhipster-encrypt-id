@@ -1,14 +1,14 @@
 {
   "name": "generator-jhipster-encrypt-id",
-  "version": "1.0.0",
+  "version": "0.99.0",
   "private": true,
-  "description": "Description for Encrypt Id",
+  "description": "JHipster blueprint to encrypt the ids of all entities in the UI and API.",
   "keywords": [
     "yeoman-generator",
     "jhipster-blueprint",
     "jhipster-8"
   ],
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "type": "module",
   "bin": {
     "jhipster-encrypt-id": "cli/cli.cjs"
