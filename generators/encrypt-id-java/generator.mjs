@@ -36,7 +36,9 @@ export default class extends BaseApplicationGenerator {
                 blocks: [
                   javaMainPackageTemplatesBlock({
                     templates: [
-                      'service/cipher/_persistClass_Cipher.java',
+                      'service/cipher/IdCipher.java',
+                      'service/cipher/IdCipherException.java',
+                      'service/cipher/_persistClass_IdCipher.java',
                       'config/EncryptIdConfiguration.java'
                     ],
                   }),

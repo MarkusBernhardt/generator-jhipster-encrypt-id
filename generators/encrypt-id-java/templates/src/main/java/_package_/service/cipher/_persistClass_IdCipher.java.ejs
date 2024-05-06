@@ -1,0 +1,12 @@
+package <%=packageName%>.service.cipher;
+
+import <%=packageName%>.config.ApplicationProperties;
+import org.springframework.stereotype.Component;
+
+@Component
+public class <%=persistClass%>IdCipher extends IdCipher {
+
+    public <%=persistClass%>IdCipher(ApplicationProperties applicationProperties) {
+        super(applicationProperties.getEncryptId().getKey(), "<%=persistClass%>");
+    }
+}

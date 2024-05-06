@@ -1,0 +1,178 @@
+package <%=packageName%>.service.cipher;
+
+import org.springframework.security.crypto.codec.Hex;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+
+public class IdCipher {
+
+private final long magic = 0x00deadbeefcafe00L;
+
+private final IvParameterSpec ivParameterSpec;
+
+private final SecretKeySpec secretKeySpec;
+
+private final ThreadLocal<Cipher> encryptCipher = new ThreadLocal<>() {
+    @Override
+    protected Cipher initialValue() {
+    try {
+    Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+    cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, ivParameterSpec);
+    return cipher;
+    } catch (Exception e) {
+    throw new RuntimeException(e);
+    }
+    }
+    };
+
+    private final ThreadLocal<Cipher> decryptCipher = new ThreadLocal<>() {
+        @Override
+        protected Cipher initialValue() {
+        try {
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, ivParameterSpec);
+        return cipher;
+        } catch (Exception e) {
+        throw new IdCipherException(e.getMessage(), e);
+        }
+        }
+        };
+
+        public IdCipher(String keyString, String ivString) {
+        try {
+        byte[] iv = MessageDigest.getInstance("MD5").digest(ivString.getBytes(StandardCharsets.UTF_8));
+        this.ivParameterSpec = new IvParameterSpec(iv);
+
+        byte[] key = MessageDigest.getInstance("SHA-256").digest(keyString.getBytes(StandardCharsets.UTF_8));
+        this.secretKeySpec = new SecretKeySpec(key, "AES");
+        } catch (Exception e) {
+        throw new RuntimeException(e.getMessage());
+        }
+        }
+
+        public String encrypt(Long id) {
+        try {
+        Cipher cipher = encryptCipher.get();
+
+        byte[] decrypted = new byte[15];
+        setLong(decrypted, id);
+        setMagic(decrypted);
+
+        byte[] encrypted = cipher.doFinal(decrypted);
+        return new String(Hex.encode(encrypted));
+        } catch (Exception e) {
+        throw new IdCipherException(e.getMessage(), e);
+        }
+        }
+
+        public Long decrypt(String id) {
+        try {
+        Cipher cipher = decryptCipher.get();
+
+        byte[] encrypted = Hex.decode(id);
+        byte[] decrypted = cipher.doFinal(encrypted);
+
+        if(getMagic(decrypted) != magic) {
+        throw new IdCipherException("Decrypted magic not matched!");
+        }
+
+        return getLong(decrypted);
+        } catch (Exception e) {
+        throw new RuntimeException(e.getMessage());
+        }
+        }
+
+
+        private void setLong(byte[] bytes, long value) {
+        int offset = 0;
+        bytes[offset] = (byte)(value >> 56);
+        offset++;
+        bytes[offset] = (byte)(value >> 48);
+        offset++;
+        bytes[offset] = (byte)(value >> 40);
+        offset++;
+        bytes[offset] = (byte)(value >> 32);
+        offset++;
+        bytes[offset] = (byte)(value >> 24);
+        offset++;
+        bytes[offset] = (byte)(value >> 16);
+        offset++;
+        bytes[offset] = (byte)(value >> 8);
+        offset++;
+        bytes[offset] = (byte)value;
+        }
+
+        private void setMagic(byte[] bytes) {
+        int offset = 8;
+        bytes[offset] = (byte)(magic >> 48);
+        offset++;
+        bytes[offset] = (byte)(magic >> 40);
+        offset++;
+        bytes[offset] = (byte)(magic >> 32);
+        offset++;
+        bytes[offset] = (byte)(magic >> 24);
+        offset++;
+        bytes[offset] = (byte)(magic >> 16);
+        offset++;
+        bytes[offset] = (byte)(magic >> 8);
+        offset++;
+        bytes[offset] = (byte)magic;
+        }
+
+        private long getLong(byte[] bytes) {
+        int offset = 0;
+        long value = 0;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        return value;
+        }
+
+        private long getMagic(byte[] bytes) {
+        int offset = 8;
+        long value = 0;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        offset++;
+        value <<= 8;
+        value |= (long)bytes[offset] & 0xff;
+        return value;
+        }
+        }
