@@ -34,6 +34,6 @@
     "localBlueprint": false,
     "sampleWritten": true,
     "skipCommitHook": true,
-    "subGenerators": ["client","server"]
+    "subGenerators": ["client", "server"]
   }
 }

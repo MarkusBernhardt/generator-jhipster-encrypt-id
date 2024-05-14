@@ -7,3 +7,5 @@ useTabs: false
 
 # js and ts rules:
 arrowParens: avoid
+
+endOfLine: auto

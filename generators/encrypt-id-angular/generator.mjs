@@ -1,5 +1,5 @@
 import BaseApplicationGenerator from 'generator-jhipster/generators/base-application';
-import * as encryptdUtil from "../encrypt-id-util.js"
+import * as encryptdUtil from '../encrypt-id-util.js';
 
 export default class extends BaseApplicationGenerator {
   async beforeQueue() {

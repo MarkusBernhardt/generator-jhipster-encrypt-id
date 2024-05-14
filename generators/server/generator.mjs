@@ -24,7 +24,7 @@ export default class extends BaseApplicationGenerator {
     return this.asPromptingTaskGroup({
       async promptingTemplateTask() {
         await this.prompt(this.prepareQuestions(command.configs));
-      }
+      },
     });
   }
 
@@ -32,10 +32,13 @@ export default class extends BaseApplicationGenerator {
     return this.asComposingTaskGroup({
       async composingTemplateTask() {
         if (this.blueprintConfig.encryptIdEnable) {
-          const encryptIdEntities = this.blueprintConfig.encryptIdType === "all" ? this.getExistingEntities().map(e => e.name) : this.blueprintConfig.encryptIdEntities;
-          await this.composeWithJHipster("jhipster-encrypt-id:encrypt-id-java", { generatorOptions: { encryptIdEntities } });
+          const encryptIdEntities =
+            this.blueprintConfig.encryptIdType === 'all'
+              ? this.getExistingEntities().map(e => e.name)
+              : this.blueprintConfig.encryptIdEntities;
+          await this.composeWithJHipster('jhipster-encrypt-id:encrypt-id-java', { generatorOptions: { encryptIdEntities } });
         }
-      }
+      },
     });
   }
 }

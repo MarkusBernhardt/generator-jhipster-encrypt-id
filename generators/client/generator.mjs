@@ -9,10 +9,13 @@ export default class extends BaseApplicationGenerator {
     return this.asComposingTaskGroup({
       async composingTemplateTask() {
         if (this.blueprintConfig.encryptIdEnable) {
-          const encryptIdEntities = this.blueprintConfig.encryptIdType === "all" ? this.getExistingEntities().map(e => e.name) : this.blueprintConfig.encryptIdEntities;
-          await this.composeWithJHipster("jhipster-encrypt-id:encrypt-id-angular", { generatorOptions: { encryptIdEntities } });
+          const encryptIdEntities =
+            this.blueprintConfig.encryptIdType === 'all'
+              ? this.getExistingEntities().map(e => e.name)
+              : this.blueprintConfig.encryptIdEntities;
+          await this.composeWithJHipster('jhipster-encrypt-id:encrypt-id-angular', { generatorOptions: { encryptIdEntities } });
         }
-      }
+      },
     });
   }
 }

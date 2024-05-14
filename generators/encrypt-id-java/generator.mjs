@@ -1,6 +1,6 @@
 import BaseApplicationGenerator from 'generator-jhipster/generators/base-application';
 import { javaMainPackageTemplatesBlock } from 'generator-jhipster/generators/java/support';
-import * as encryptdUtil from "../encrypt-id-util.js"
+import * as encryptdUtil from '../encrypt-id-util.js';
 
 export default class extends BaseApplicationGenerator {
   async beforeQueue() {
@@ -14,7 +14,7 @@ export default class extends BaseApplicationGenerator {
         entityConfig.enableEncryptId = encryptIdEntities?.includes(entityName) || entityConfig.enableEncryptId;
         if (!entityConfig.enableEncryptId) return;
 
-        if (entityConfig.dto !== "mapstruct") {
+        if (entityConfig.dto !== 'mapstruct') {
           throw new Error('DTO with mapstruct required for entity ' + entityName);
         }
 
@@ -39,7 +39,7 @@ export default class extends BaseApplicationGenerator {
                       'service/cipher/IdCipher.java',
                       'service/cipher/IdCipherException.java',
                       'service/cipher/_persistClass_IdCipher.java',
-                      'config/EncryptIdConfiguration.java'
+                      'config/EncryptIdConfiguration.java',
                     ],
                   }),
                 ],
