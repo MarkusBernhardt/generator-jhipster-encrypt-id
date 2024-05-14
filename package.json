@@ -6,9 +6,25 @@
   "keywords": [
     "yeoman-generator",
     "jhipster-blueprint",
-    "jhipster-8"
+    "jhipster-8",
+    "Id",
+    "Encrypt",
+    "Encrypt Id"
   ],
+  "homepage": "https://github.com/hipster-labs/generator-jhipster-encrypt-id",
+  "bugs": {
+    "url": "https://github.com/hipster-labs/generator-jhipster-encrypt-id/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hipster-labs/generator-jhipster-encrypt-id.git"
+  },
   "license": "Apache-2.0",
+  "author": {
+    "name": "Markus Bernhardt",
+    "email": "markus.bernhardt@scmb.de",
+    "url": "https://github.com/MarkusBernhardt"
+  },
   "type": "module",
   "bin": {
     "jhipster-encrypt-id": "cli/cli.cjs"
@@ -23,6 +39,10 @@
     "lint-fix": "npm run ejslint && npm run lint -- --fix",
     "prettier-check": "prettier --check \"{,**/}*.{md,json,yml,html,js,ts,tsx,css,scss,vue,java}\"",
     "prettier-format": "prettier --write \"{,**/}*.{md,json,yml,html,js,ts,tsx,css,scss,vue,java}\"",
+    "release": "npm run lint && git push github main && git push github main --tags && npm publish",
+    "release:major": "npm version major -a -m \"Update to %s\" && npm run release",
+    "release:minor": "npm version minor -a -m \"Update to %s\" && npm run release",
+    "release:patch": "npm version patch -a -m \"Update to %s\" && npm run release",
     "pretest": "npm run prettier-check && npm run lint",
     "test": "vitest run",
     "update-snapshot": "vitest run --update",
@@ -30,7 +50,7 @@
   },
   "dependencies": {
     "change-case": "^5.4.3",
-    "generator-jhipster": "github:jhipster/generator-jhipster"
+    "generator-jhipster": "8.4.0"
   },
   "devDependencies": {
     "ejs-lint": "2.0.0",
