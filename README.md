@@ -53,5 +53,14 @@ jhipster-encrypt-id app --help
 
 And looking for `(blueprint option: encrypt-id)` options.
 
+## Pre-release
+
+To use an unreleased version, install it using git.
+
+```bash
+npm install -g jhipster/generator-jhipster-encrypt-id#main
+jhipster --blueprints encrypt-id --skip-jhipster-dependencies
+```
+
 [npm-image]: https://img.shields.io/npm/v/generator-jhipster-encrypt-id.svg
 [npm-url]: https://npmjs.org/package/generator-jhipster-encrypt-id
