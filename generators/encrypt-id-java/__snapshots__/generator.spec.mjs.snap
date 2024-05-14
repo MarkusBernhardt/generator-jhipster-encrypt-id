@@ -2,7 +2,64 @@
 
 exports[`SubGenerator encrypt-id-java of encrypt-id JHipster blueprint > run > should succeed 1`] = `
 {
+  ".jhipster/Entities.json": {
+    "stateCleared": "modified",
+  },
   ".yo-rc.json": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/GeneratedByJHipster.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/config/EncryptIdConfiguration.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/config/package-info.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/domain/Authority.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/domain/Entities.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/domain/package-info.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/package-info.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/service/cipher/IdCipher.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/service/cipher/IdCipherException.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/service/cipher/UserIdCipher.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/service/cipher/package-info.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/AssertUtils.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/AuthorityAsserts.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/AuthorityTest.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/AuthorityTestSamples.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/EntitiesAsserts.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/EntitiesTest.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/EntitiesTestSamples.java": {
     "stateCleared": "modified",
   },
 }

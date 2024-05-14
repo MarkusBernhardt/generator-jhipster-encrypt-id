@@ -137,13 +137,13 @@ exports[`SubGenerator server of encrypt-id JHipster blueprint > run > should suc
   "src/main/java/com/mycompany/myapp/config/DateTimeFormatConfiguration.java": {
     "stateCleared": "modified",
   },
+  "src/main/java/com/mycompany/myapp/config/EncryptIdConfiguration.java": {
+    "stateCleared": "modified",
+  },
   "src/main/java/com/mycompany/myapp/config/JacksonConfiguration.java": {
     "stateCleared": "modified",
   },
   "src/main/java/com/mycompany/myapp/config/LiquibaseConfiguration.java": {
-    "stateCleared": "modified",
-  },
-  "src/main/java/com/mycompany/myapp/config/LocaleConfiguration.java": {
     "stateCleared": "modified",
   },
   "src/main/java/com/mycompany/myapp/config/LoggingAspectConfiguration.java": {
@@ -230,6 +230,18 @@ exports[`SubGenerator server of encrypt-id JHipster blueprint > run > should suc
   "src/main/java/com/mycompany/myapp/service/UsernameAlreadyUsedException.java": {
     "stateCleared": "modified",
   },
+  "src/main/java/com/mycompany/myapp/service/cipher/IdCipher.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/service/cipher/IdCipherException.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/service/cipher/UserIdCipher.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/service/cipher/package-info.java": {
+    "stateCleared": "modified",
+  },
   "src/main/java/com/mycompany/myapp/service/dto/AdminUserDTO.java": {
     "stateCleared": "modified",
   },
@@ -261,6 +273,9 @@ exports[`SubGenerator server of encrypt-id JHipster blueprint > run > should suc
     "stateCleared": "modified",
   },
   "src/main/java/com/mycompany/myapp/web/rest/AuthenticateController.java": {
+    "stateCleared": "modified",
+  },
+  "src/main/java/com/mycompany/myapp/web/rest/AuthorityResource.java": {
     "stateCleared": "modified",
   },
   "src/main/java/com/mycompany/myapp/web/rest/PublicUserResource.java": {
@@ -365,6 +380,9 @@ exports[`SubGenerator server of encrypt-id JHipster blueprint > run > should suc
   "src/main/webapp/i18n/en/activate.json": {
     "stateCleared": "modified",
   },
+  "src/main/webapp/i18n/en/adminAuthority.json": {
+    "stateCleared": "modified",
+  },
   "src/main/webapp/i18n/en/configuration.json": {
     "stateCleared": "modified",
   },
@@ -416,6 +434,9 @@ exports[`SubGenerator server of encrypt-id JHipster blueprint > run > should suc
   "src/test/java/com/mycompany/myapp/config/AsyncSyncConfiguration.java": {
     "stateCleared": "modified",
   },
+  "src/test/java/com/mycompany/myapp/config/CRLFLogConverterTest.java": {
+    "stateCleared": "modified",
+  },
   "src/test/java/com/mycompany/myapp/config/EmbeddedSQL.java": {
     "stateCleared": "modified",
   },
@@ -441,6 +462,18 @@ exports[`SubGenerator server of encrypt-id JHipster blueprint > run > should suc
     "stateCleared": "modified",
   },
   "src/test/java/com/mycompany/myapp/config/timezone/HibernateTimeZoneIT.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/AssertUtils.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/AuthorityAsserts.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/AuthorityTest.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/domain/AuthorityTestSamples.java": {
     "stateCleared": "modified",
   },
   "src/test/java/com/mycompany/myapp/management/SecurityMetersServiceTests.java": {
@@ -486,6 +519,9 @@ exports[`SubGenerator server of encrypt-id JHipster blueprint > run > should suc
     "stateCleared": "modified",
   },
   "src/test/java/com/mycompany/myapp/web/rest/AuthenticateControllerIT.java": {
+    "stateCleared": "modified",
+  },
+  "src/test/java/com/mycompany/myapp/web/rest/AuthorityResourceIT.java": {
     "stateCleared": "modified",
   },
   "src/test/java/com/mycompany/myapp/web/rest/PublicUserResourceIT.java": {

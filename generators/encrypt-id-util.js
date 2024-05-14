@@ -2,7 +2,7 @@ import * as changeCase from 'change-case';
 
 function findRegexNeedle(generator, filePath, needle) {
   let flag = false;
-  generator.editFile(filePath, content => {
+  generator.editFile(filePath, { ignoreNonExisting: true }, content => {
     if (content.includes(needle)) {
       flag = true;
     }
@@ -13,25 +13,25 @@ function findRegexNeedle(generator, filePath, needle) {
 
 function replaceRegexNeedles(generator, filePath, replaceNeedles) {
   replaceNeedles.forEach(needle => {
-    generator.editFile(filePath, contents => contents.replaceAll(needle.regex, needle.content));
+    generator.editFile(filePath, { ignoreNonExisting: true }, contents => contents.replaceAll(needle.regex, needle.content));
   });
 }
 
 function replaceLongToStringNeedles(generator, filePath, replaceNeedles) {
   replaceNeedles.forEach(needle => {
-    generator.editFile(filePath, contents => contents.replaceAll(needle, needle.replace('Long', 'String')));
+    generator.editFile(filePath, { ignoreNonExisting: true }, contents => contents.replaceAll(needle, needle.replace('Long', 'String')));
   });
 }
 
 function replaceNumberToStringNeedles(generator, filePath, replaceNeedles) {
   replaceNeedles.forEach(needle => {
-    generator.editFile(filePath, contents => contents.replaceAll(needle, needle.replace('number', 'string')));
+    generator.editFile(filePath, { ignoreNonExisting: true }, contents => contents.replaceAll(needle, needle.replace('number', 'string')));
   });
 }
 
 function replaceNumberToTextNeedles(generator, filePath, replaceNeedles) {
   replaceNeedles.forEach(needle => {
-    generator.editFile(filePath, contents => contents.replaceAll(needle, needle.replace('number', 'text')));
+    generator.editFile(filePath, { ignoreNonExisting: true }, contents => contents.replaceAll(needle, needle.replace('number', 'text')));
   });
 }
 
