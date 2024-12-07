@@ -50,7 +50,8 @@
   },
   "dependencies": {
     "change-case": "^5.4.3",
-    "generator-jhipster": "8.4.0"
+    "generator-jhipster": "^8.4.0",
+    "generator-jhipster-encrypt-id": "^0.99.13"
   },
   "devDependencies": {
     "ejs-lint": "2.0.0",
