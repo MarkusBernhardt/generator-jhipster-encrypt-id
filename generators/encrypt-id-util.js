@@ -561,6 +561,10 @@ function convertJavaUserResourceIT(generator, testJavaPackageDir, packageName) {
       content: `user.setId(userIdCipher.encrypt(updatedUser.getId()))`,
     },
     {
+      regex: /userDTO.setId\(updatedUser.getId\(\)\)/gm,
+      content: `userDTO.setId(userIdCipher.encrypt(updatedUser.getId()))`,
+    },
+    {
       regex: /isEqualTo\(DEFAULT_ID\)/gm,
       content: `isEqualTo(userIdCipher.encrypt(DEFAULT_ID))`,
     },
