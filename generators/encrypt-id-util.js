@@ -76,7 +76,7 @@ function convertAngularUserManagement(generator, clientSrcDir) {
 function convertAngularUserManagementList(generator, clientSrcDir) {
   const path = `${clientSrcDir}/app/admin/user-management/list/user-management.component.ts`;
 
-  replaceNumberToStringNeedles(generator, path, [', item: User): number']);
+  replaceNumberToStringNeedles(generator, path, ['item: User): number']);
 }
 
 function convertAngularUpdateHtml(generator, clientSrcDir, entity) {
@@ -236,7 +236,7 @@ function convertJavaMapperTest(generator, testJavaPackageDir, packageName, entit
   const regExNeedles = [
     {
       regex: /import org.junit.jupiter.api.Test;/gm,
-      content: `import ${packageName}.service.cipher.${persistClass}IdCipher;\nimport de.scmb.sultan.config.ApplicationProperties;\nimport org.junit.jupiter.api.Test;`,
+      content: `import ${packageName}.service.cipher.${persistClass}IdCipher;\nimport ${packageName}.config.ApplicationProperties;\nimport org.junit.jupiter.api.Test;`,
     },
     {
       regex: new RegExp(`${changeCase.camelCase(persistClass)}Mapper = new ${persistClass}MapperImpl\\(\\);`, 'gm'),
@@ -405,7 +405,7 @@ function convertJavaUserMapperTest(generator, testJavaPackageDir, packageName) {
   const regExNeedles = [
     {
       regex: new RegExp(`import ${packageName}.service.dto.UserDTO;`, 'gm'),
-      content: `import ${packageName}.service.cipher.UserIdCipher;\nimport de.scmb.sultan.config.ApplicationProperties;\nimport ${packageName}.service.dto.UserDTO;\n`,
+      content: `import ${packageName}.service.cipher.UserIdCipher;\nimport ${packageName}.config.ApplicationProperties;\nimport ${packageName}.service.dto.UserDTO;\n`,
     },
     {
       regex: /userMapper = new UserMapper\(/gm,
