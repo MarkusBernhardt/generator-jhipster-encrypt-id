@@ -1,6 +1,6 @@
 {
   "name": "generator-jhipster-encrypt-id",
-  "version": "0.99.16",
+  "version": "0.99.17",
   "private": false,
   "description": "JHipster blueprint to encrypt the ids of all entities in the UI and API.",
   "keywords": [
