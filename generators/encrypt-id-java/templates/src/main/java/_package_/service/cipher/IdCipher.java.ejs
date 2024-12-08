@@ -56,6 +56,10 @@ private final ThreadLocal<Cipher> encryptCipher = new ThreadLocal<>() {
 
         public String encrypt(Long id) {
         try {
+        if(id == null) {
+        return null;
+        }
+
         Cipher cipher = encryptCipher.get();
 
         byte[] decrypted = new byte[15];
@@ -71,6 +75,10 @@ private final ThreadLocal<Cipher> encryptCipher = new ThreadLocal<>() {
 
         public Long decrypt(String id) {
         try {
+        if(id == null) {
+        return null;
+        }
+
         Cipher cipher = decryptCipher.get();
 
         byte[] encrypted = Hex.decode(id);
