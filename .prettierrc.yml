@@ -1,11 +1,9 @@
-# Prettier configuration
-
+endOfLine: auto
 printWidth: 140
 singleQuote: true
 tabWidth: 2
 useTabs: false
-
-# js and ts rules:
 arrowParens: avoid
-
-endOfLine: auto
+bracketSameLine: false
+plugins:
+  - prettier-plugin-packagejson

@@ -2,7 +2,7 @@ import { beforeAll, describe, it } from 'vitest';
 
 import { defaultHelpers as helpers, result } from 'generator-jhipster/testing';
 
-import entities, { encryptedEntityNames } from './__test-fixtures__/entities.mjs';
+import entities, { encryptedEntityNames } from './__test-fixtures__/entities.js';
 
 const MAIN = 'src/main/java/com/mycompany/myapp';
 const TEST = 'src/test/java/com/mycompany/myapp';
@@ -20,7 +20,7 @@ describe('encrypt-id JHipster blueprint', () => {
     await helpers
       .runJHipster('app')
       .withJHipsterConfig({}, entities)
-      .withYoRcConfig('generator-jhipster-encrypt-id', {
+      .withBlueprintConfig({
         encryptIdEnable: true,
         encryptIdType: 'selected',
         encryptIdEntities: encryptedEntityNames,
@@ -28,10 +28,9 @@ describe('encrypt-id JHipster blueprint', () => {
       .withOptions({
         creationTimestamp: '2024-02-01',
         ignoreNeedlesError: true,
-        blueprint: 'encrypt-id',
       })
-      .withJHipsterLookup()
-      .withParentBlueprintLookup();
+      .withJHipsterGenerators()
+      .withConfiguredBlueprint();
   }, 60000);
 
   describe('cipher', () => {
@@ -285,6 +284,27 @@ describe('encrypt-id JHipster blueprint', () => {
       result.assertFileContent(`${MAIN}/service/UserService.java`, 'userIdCipher.decrypt(userDTO.getId())');
     });
 
+    it('should inject the cipher into every class that creates a user dto', () => {
+      result.assertFileContent(`${MAIN}/web/rest/AccountResource.java`, /public AccountResource\([^)]*UserIdCipher userIdCipher[^)]*\)/);
+      result.assertFileContent(`${MAIN}/web/rest/AccountResource.java`, 'this.userIdCipher = userIdCipher;');
+      result.assertFileContent(`${MAIN}/web/rest/UserResource.java`, /public UserResource\([^)]*UserIdCipher userIdCipher[^)]*\)/);
+      result.assertFileContent(`${MAIN}/web/rest/UserResource.java`, 'this.userIdCipher = userIdCipher;');
+      result.assertFileContent(`${MAIN}/service/UserService.java`, /public UserService\([^)]*UserIdCipher userIdCipher[^)]*\)/);
+      result.assertFileContent(`${MAIN}/service/UserService.java`, 'this.userIdCipher = userIdCipher;');
+      result.assertFileContent(`${MAIN}/service/mapper/UserMapper.java`, /public UserMapper\(UserIdCipher userIdCipher\)/);
+    });
+
+    it('should not expose the plain id when a user is created', () => {
+      const userResource = `${MAIN}/web/rest/UserResource.java`;
+      result.assertFileContent(userResource, 'ResponseEntity<AdminUserDTO> createUser(');
+      result.assertFileContent(userResource, '.body(new AdminUserDTO(newUser, userIdCipher))');
+      result.assertNoFileContent(userResource, 'ResponseEntity<User> createUser(');
+    });
+
+    it('should decrypt the id of the dto before it is compared to the id of the entity', () => {
+      result.assertFileContent(`${MAIN}/web/rest/UserResource.java`, '.getId().equals(userIdCipher.decrypt(userDTO.getId()))');
+    });
+
     it('should pass the cipher to every user dto', () => {
       result.assertNoFileContent(`${MAIN}/service/UserService.java`, 'AdminUserDTO::new');
       result.assertNoFileContent(`${MAIN}/service/UserService.java`, 'UserDTO::new');
@@ -292,15 +312,28 @@ describe('encrypt-id JHipster blueprint', () => {
       result.assertNoFileContent(`${MAIN}/web/rest/AccountResource.java`, 'AdminUserDTO::new');
     });
 
-    it('should compare the encrypted id only for the dto', () => {
+    it('should use an encrypted id in the integration test of the user resource', () => {
       const userResourceIT = `${TEST}/web/rest/UserResourceIT.java`;
-      result.assertFileContent(userResourceIT, 'assertThat(userDTO.getId()).isEqualTo(userIdCipher.encrypt(DEFAULT_ID));');
-      result.assertFileContent(userResourceIT, 'assertThat(user.getId()).isEqualTo(DEFAULT_ID);');
+      result.assertFileContent(userResourceIT, 'userDTO.setId(userIdCipher.encrypt(DEFAULT_ID));');
+      result.assertFileContent(userResourceIT, 'userDTO.setId(userIdCipher.encrypt(updatedUser.getId()));');
+      // The id of the User entity stays numeric.
+      result.assertFileContent(userResourceIT, 'user1.setId(DEFAULT_ID);');
+    });
+
+    it('should compare the encrypted id only for the dto', () => {
+      const userMapperTest = `${TEST}/service/mapper/UserMapperTest.java`;
+      result.assertFileContent(userMapperTest, 'assertThat(convertedUserDto.getId()).isEqualTo(userIdCipher.encrypt(user.getId()));');
+      result.assertFileContent(userMapperTest, 'assertThat(convertedUser.getId()).isEqualTo(userIdCipher.decrypt(userDto.getId()));');
     });
 
     it('should pass the cipher to the user mapper test', () => {
-      result.assertFileContent(`${TEST}/service/mapper/UserMapperTest.java`, 'userMapper = new UserMapper(userIdCipher);');
-      result.assertFileContent(`${TEST}/service/mapper/UserMapperTest.java`, 'new AdminUserDTO(user, userIdCipher)');
+      const userMapperTest = `${TEST}/service/mapper/UserMapperTest.java`;
+      // The cipher has to be a field, the assertions of the test methods use it as well.
+      result.assertFileContent(userMapperTest, 'private UserIdCipher userIdCipher;');
+      result.assertFileContent(userMapperTest, 'userIdCipher = new UserIdCipher(applicationProperties);');
+      result.assertNoFileContent(userMapperTest, 'UserIdCipher userIdCipher = new UserIdCipher');
+      result.assertFileContent(userMapperTest, 'userMapper = new UserMapper(userIdCipher);');
+      result.assertFileContent(userMapperTest, 'new AdminUserDTO(user, userIdCipher)');
     });
   });
 
@@ -315,7 +348,7 @@ describe('encrypt-id JHipster blueprint', () => {
 
     it('should use a string id for the user', () => {
       result.assertFileContent(`${WEBAPP}/entities/user/user.model.ts`, 'id: string;');
-      result.assertFileContent(`${WEBAPP}/admin/user-management/user-management.model.ts`, 'id: string | null');
+      result.assertFileContent(`${WEBAPP}/entities/admin/user-management/user-management.model.ts`, 'id?: string | null;');
     });
   });
 
@@ -339,16 +372,25 @@ describe('encrypt-id JHipster blueprint', () => {
 
   describe('angular components', () => {
     it('should track an encrypted entity by a string id', () => {
-      result.assertFileContent(`${WEBAPP}/entities/alpha/list/alpha.component.ts`, /trackId = \(_index: number, item: IAlpha\): string/);
-      result.assertFileContent(`${WEBAPP}/admin/user-management/list/user-management.component.ts`, 'item: User): string');
+      result.assertFileContent(`${WEBAPP}/entities/alpha/list/alpha.ts`, /trackId = \(item: IAlpha\): string/);
+      result.assertFileContent(`${WEBAPP}/entities/admin/user-management/list/user-management.ts`, '): string => this.');
     });
 
     it('should delete an encrypted entity by a string id', () => {
-      result.assertFileContent(`${WEBAPP}/entities/alpha/delete/alpha-delete-dialog.component.ts`, 'confirmDelete(id: string)');
+      result.assertFileContent(`${WEBAPP}/entities/alpha/delete/alpha-delete-dialog.ts`, 'confirmDelete(id: string)');
+    });
+
+    it('should keep the number id of an entity without encrypted id', () => {
+      result.assertFileContent(`${WEBAPP}/entities/zeta/delete/zeta-delete-dialog.ts`, 'confirmDelete(id: number)');
+    });
+
+    it('should turn the id of the update form into a text field', () => {
+      result.assertFileContent(`${WEBAPP}/entities/alpha/update/alpha-update.html`, /<input type="text"[^>]*name="id"/);
     });
 
     it('should not turn the number fields of the update form into text fields', () => {
-      result.assertFileContent(`${WEBAPP}/entities/alpha/update/alpha-update.component.html`, /<input type="number"[^>]*name="counter"/);
+      result.assertFileContent(`${WEBAPP}/entities/alpha/update/alpha-update.html`, /<input type="number"[^>]*name="counter"/);
+      result.assertFileContent(`${WEBAPP}/entities/alpha/update/alpha-update.html`, /<input type="number"[^>]*name="identifier"/);
     });
   });
 
@@ -357,6 +399,7 @@ describe('encrypt-id JHipster blueprint', () => {
       result.assertFileContent(`${WEBAPP}/entities/alpha/alpha.test-samples.ts`, /id: '\d+'/);
       result.assertNoFileContent(`${WEBAPP}/entities/alpha/alpha.test-samples.ts`, /id: \d+/);
       result.assertFileContent(`${WEBAPP}/entities/user/user.test-samples.ts`, /id: '\d+'/);
+      result.assertFileContent(`${WEBAPP}/entities/admin/user-management/user-management.test-samples.ts`, /id: '\d+'/);
     });
 
     it('should keep number ids in the test samples of an entity without encrypted id', () => {
@@ -367,40 +410,49 @@ describe('encrypt-id JHipster blueprint', () => {
       const serviceSpec = `${WEBAPP}/entities/alpha/service/alpha.service.spec.ts`;
       result.assertFileContent(serviceSpec, "service.find('123')");
       result.assertFileContent(serviceSpec, "service.delete('123')");
-      result.assertNoFileContent(serviceSpec, /"id":\d+/);
+      result.assertFileContent(serviceSpec, /const entity1 = \{id: '\d+'\}/);
+      result.assertNoFileContent(serviceSpec, /\{id: \d+\}/);
+    });
+
+    it('should use string ids in the delete dialog test', () => {
+      const deleteSpec = `${WEBAPP}/entities/alpha/delete/alpha-delete-dialog.spec.ts`;
+      result.assertFileContent(deleteSpec, "comp.confirmDelete('123')");
+      result.assertFileContent(deleteSpec, "expect(service.delete).toHaveBeenCalledWith('123')");
+    });
+
+    it('should keep number ids in the delete dialog test of an entity without encrypted id', () => {
+      const deleteSpec = `${WEBAPP}/entities/zeta/delete/zeta-delete-dialog.spec.ts`;
+      result.assertFileContent(deleteSpec, 'comp.confirmDelete(123)');
     });
 
     it('should use string ids in the route test', () => {
       const routeSpec = `${WEBAPP}/entities/alpha/route/alpha-routing-resolve.service.spec.ts`;
       result.assertFileContent(routeSpec, "{ id: '123' }");
+      result.assertFileContent(routeSpec, "expect(service.find).toHaveBeenCalledWith('123')");
       result.assertNoFileContent(routeSpec, /\{ id: \d+ \}/);
-    });
-
-    it('should use string ids in the delete dialog test', () => {
-      const deleteSpec = `${WEBAPP}/entities/alpha/delete/alpha-delete-dialog.component.spec.ts`;
-      result.assertFileContent(deleteSpec, "comp.confirmDelete('123')");
-      result.assertFileContent(deleteSpec, "expect(service.delete).toHaveBeenCalledWith('123')");
     });
 
     it('should use string ids in the component tests', () => {
       for (const path of [
-        `${WEBAPP}/entities/alpha/detail/alpha-detail.component.spec.ts`,
-        `${WEBAPP}/entities/alpha/list/alpha.component.spec.ts`,
-        `${WEBAPP}/entities/alpha/update/alpha-update.component.spec.ts`,
+        `${WEBAPP}/entities/alpha/detail/alpha-detail.spec.ts`,
+        `${WEBAPP}/entities/alpha/list/alpha.spec.ts`,
+        `${WEBAPP}/entities/alpha/update/alpha-update.spec.ts`,
       ]) {
-        result.assertFileContent(path, /"id":"\d+"/);
+        result.assertFileContent(path, /\{id: '\d+'\}/);
       }
     });
 
     it('should use string ids for the encrypted relationships of the update test', () => {
-      const updateSpec = `${WEBAPP}/entities/alpha/update/alpha-update.component.spec.ts`;
-      result.assertFileContent(updateSpec, /const beta\s*: IBeta = \{"id":"\d+"\}/);
-      result.assertFileContent(updateSpec, /const user\s*: IUser = \{"id":"\d+"\}/);
+      const updateSpec = `${WEBAPP}/entities/alpha/update/alpha-update.spec.ts`;
+      result.assertFileContent(updateSpec, /const beta\s*: IBeta = \{id: '\d+'\}/);
+      result.assertFileContent(updateSpec, /const user\s*: IUser = \{id: '\d+'\}/);
     });
 
     it('should keep number ids for the relationships to entities without encrypted id', () => {
-      const updateSpec = `${WEBAPP}/entities/alpha/update/alpha-update.component.spec.ts`;
-      result.assertFileContent(updateSpec, /const zeta\s*: IZeta = \{"id":\d+\}/);
+      const updateSpec = `${WEBAPP}/entities/alpha/update/alpha-update.spec.ts`;
+      result.assertFileContent(updateSpec, /const zeta\s*: IZeta = \{id: \d+\}/);
+      // `describe('compareZeta')` uses the ids of Zeta without a type annotation.
+      result.assertFileContent(updateSpec, /describe\('compareZeta'[\s\S]*?const entity = \{id: \d+\}/);
     });
   });
 });

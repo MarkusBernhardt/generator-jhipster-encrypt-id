@@ -25,9 +25,14 @@ entity Tag {
 }
 
 relationship ManyToOne {
-  Post{blog(name)} to Blog
+  Post{blog(name)} to Blog{posts}
+  Blog{user(login)} to User with builtInEntity
 }
 
 relationship ManyToMany {
   Post{tag(name)} to Tag{entry}
 }
+
+// The blueprint requires a mapstruct dto and a service implementation for every encrypted entity.
+dto Blog, Post, Tag with mapstruct
+service Blog, Post, Tag with serviceImpl

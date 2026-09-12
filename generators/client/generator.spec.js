@@ -2,20 +2,21 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import { defaultHelpers as helpers, result } from 'generator-jhipster/testing';
 
-const SUB_GENERATOR = 'encrypt-id-angular';
-const SUB_GENERATOR_NAMESPACE = `jhipster-encrypt-id:${SUB_GENERATOR}`;
+const SUB_GENERATOR = 'client';
+const BLUEPRINT_NAMESPACE = `jhipster:${SUB_GENERATOR}`;
 
-describe('SubGenerator encrypt-id-angular of encrypt-id JHipster blueprint', () => {
+describe('SubGenerator client of encrypt-id JHipster blueprint', () => {
   describe('run', () => {
     beforeAll(async function () {
       await helpers
-        .run(SUB_GENERATOR_NAMESPACE)
+        .run(BLUEPRINT_NAMESPACE)
         .withJHipsterConfig()
         .withOptions({
+          creationTimestamp: '2024-05-01',
           ignoreNeedlesError: true,
         })
-        .withJHipsterLookup()
-        .withParentBlueprintLookup();
+        .withJHipsterGenerators()
+        .withConfiguredBlueprint();
     });
 
     it('should succeed', () => {

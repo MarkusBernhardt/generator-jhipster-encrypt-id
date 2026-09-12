@@ -16,6 +16,18 @@ The blueprint will encrypt the ids of all selected entities in the user interfac
 database. This is done to prohibit the users from guessing valid ids and by that preventing some kind of attacks
 against the application and also hiding some information, like the number of users, transactions, etc.
 
+# Compatibility
+
+Every major version of the blueprint targets one major version of JHipster.
+
+| Blueprint | JHipster | Node                      |
+| --------- | -------- | ------------------------- |
+| 1.x       | 9.x      | `^22.18.0 \|\| >=24.11.0` |
+| 0.99.x    | 8.x      | `^18.13.0 \|\| >= 20.6.1` |
+
+The blueprint declares the supported JHipster version in `engines`, so `npm` reports a mismatch during the
+installation.
+
 # Prerequisites
 
 As this is a [JHipster](https://www.jhipster.tech/) blueprint, we expect you have JHipster and its related tools already
@@ -52,6 +64,12 @@ jhipster-encrypt-id app --help
 ```
 
 And looking for `(blueprint option: encrypt-id)` options.
+
+The options can also be passed on the command line, which is what the tests and the sample do:
+
+```bash
+jhipster-encrypt-id jdl sample.jdl --encrypt-id-enable --encrypt-id-type all
+```
 
 ## Pre-release
 
@@ -124,7 +142,13 @@ and is not touched. Encrypted and unencrypted entities can be mixed in one appli
 ## The User entity
 
 The id of the built in `User` entity is **always** encrypted as soon as the blueprint is enabled, because it is
-exposed by `UserDTO`, `AdminUserDTO`, the account API and the user management screens.
+exposed by `UserDTO`, `AdminUserDTO`, the account API and the user administration.
+
+Since JHipster 9 the user administration is generated as the regular entity `UserManagement` in
+`entities/admin/user-management`, so the blueprint converts it like any other entity with an encrypted id.
+
+`POST /api/admin/users` answers with an `AdminUserDTO` instead of the `User` entity, because the entity would
+carry the plain database id in its response.
 
 # Requirements and limitations
 
@@ -153,7 +177,16 @@ npm test
 
 The tests generate a complete application with entities that use every relationship type, a relationship to the
 `User` entity and a relationship to an entity without an encrypted id, and assert on the generated sources. The
-entity model used by the tests lives in `generators/__test-fixtures__/entities.mjs`.
+entity model used by the tests lives in `generators/__test-fixtures__/entities.js`.
+
+To generate a real application with the blueprint, use the sample:
+
+```bash
+npm link
+cd /some/empty/folder
+jhipster-encrypt-id jdl path/to/generator-jhipster-encrypt-id/.blueprint/generate-sample/templates/samples/sample.jdl \
+  --encrypt-id-enable --encrypt-id-type all
+```
 
 [npm-image]: https://img.shields.io/npm/v/generator-jhipster-encrypt-id.svg
 [npm-url]: https://npmjs.org/package/generator-jhipster-encrypt-id

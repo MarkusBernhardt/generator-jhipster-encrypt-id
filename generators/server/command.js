@@ -1,8 +1,6 @@
-/**
- * @type {import('generator-jhipster').JHipsterCommandDefinition}
- */
-const command = {
-  options: {},
+import { asCommand } from 'generator-jhipster';
+
+export default asCommand({
   configs: {
     encryptIdEnable: {
       cli: {
@@ -10,7 +8,6 @@ const command = {
       },
       prompt: {
         type: 'confirm',
-        name: 'encryptIdEnable',
         message: 'Do you want to encrypt the ids of entities in the API and the UI?',
         default: true,
       },
@@ -22,8 +19,7 @@ const command = {
       },
       prompt: generator => ({
         when: answers => (generator.initialRun || generator.options.askAnswered) && answers.encryptIdEnable,
-        type: 'list',
-        name: 'encryptIdType',
+        type: 'select',
         message: 'Do you want to encrypt the ids of all existing entities?',
         choices: [
           { name: 'Yes, update all', value: 'all' },
@@ -40,7 +36,6 @@ const command = {
       prompt: generator => ({
         when: answers => answers.encryptIdType === 'selected',
         type: 'checkbox',
-        name: 'encryptIdEntities',
         message: 'Please choose the entities to be encrypted',
         choices: generator.getExistingEntities().map(e => e.name),
         default: [],
@@ -48,6 +43,4 @@ const command = {
       scope: 'blueprint',
     },
   },
-};
-
-export default command;
+});

@@ -26,8 +26,8 @@ describe('SubGenerator encrypt-id-java of encrypt-id JHipster blueprint', () => 
           creationTimestamp: '2024-02-01',
           ignoreNeedlesError: true,
         })
-        .withJHipsterLookup()
-        .withParentBlueprintLookup();
+        .withJHipsterGenerators()
+        .withConfiguredBlueprint();
     });
 
     it('should succeed', () => {
@@ -41,8 +41,8 @@ describe('SubGenerator encrypt-id-java of encrypt-id JHipster blueprint', () => 
         .run(SUB_GENERATOR_NAMESPACE)
         .withJHipsterConfig({}, [entity])
         .withOptions({ creationTimestamp: '2024-02-01', ignoreNeedlesError: true })
-        .withJHipsterLookup()
-        .withParentBlueprintLookup();
+        .withJHipsterGenerators()
+        .withConfiguredBlueprint();
 
     it('should require mapstruct', async () => {
       await expect(runWithEntity({ name: 'Alpha', enableEncryptId: true, service: 'serviceImpl', fields: [] })).rejects.toThrow(
@@ -74,8 +74,8 @@ describe('SubGenerator encrypt-id-java of encrypt-id JHipster blueprint', () => 
         .run(SUB_GENERATOR_NAMESPACE)
         .withJHipsterConfig({}, [{ name: 'Zeta', dto: 'mapstruct', service: 'serviceImpl', jpaMetamodelFiltering: true, fields: [] }])
         .withOptions({ creationTimestamp: '2024-02-01', ignoreNeedlesError: true })
-        .withJHipsterLookup()
-        .withParentBlueprintLookup();
+        .withJHipsterGenerators()
+        .withConfiguredBlueprint();
 
       result.assertNoFile('src/main/java/com/mycompany/myapp/service/cipher/ZetaIdCipher.java');
     });
@@ -85,8 +85,8 @@ describe('SubGenerator encrypt-id-java of encrypt-id JHipster blueprint', () => 
         .run(SUB_GENERATOR_NAMESPACE)
         .withJHipsterConfig({}, [{ name: 'Alpha', dto: 'mapstruct', service: 'serviceImpl', fields: [] }])
         .withOptions({ creationTimestamp: '2024-02-01', ignoreNeedlesError: true, encryptIdEntities: ['Alpha'] })
-        .withJHipsterLookup()
-        .withParentBlueprintLookup();
+        .withJHipsterGenerators()
+        .withConfiguredBlueprint();
 
       result.assertFile('src/main/java/com/mycompany/myapp/service/cipher/AlphaIdCipher.java');
       result.assertFileContent('.jhipster/Alpha.json', /"enableEncryptId": true/);
@@ -100,8 +100,8 @@ describe('SubGenerator encrypt-id-java of encrypt-id JHipster blueprint', () => 
           { name: 'Zeta', dto: 'mapstruct', service: 'serviceImpl', fields: [] },
         ])
         .withOptions({ creationTimestamp: '2024-02-01', ignoreNeedlesError: true, encryptIdEntities: ['Alpha'] })
-        .withJHipsterLookup()
-        .withParentBlueprintLookup();
+        .withJHipsterGenerators()
+        .withConfiguredBlueprint();
 
       result.assertFile('src/main/java/com/mycompany/myapp/service/cipher/AlphaIdCipher.java');
       result.assertNoFile('src/main/java/com/mycompany/myapp/service/cipher/ZetaIdCipher.java');
@@ -112,8 +112,8 @@ describe('SubGenerator encrypt-id-java of encrypt-id JHipster blueprint', () => 
         .run(SUB_GENERATOR_NAMESPACE)
         .withJHipsterConfig({}, [{ name: 'Alpha', dto: 'mapstruct', service: 'serviceImpl', fields: [] }])
         .withOptions({ creationTimestamp: '2024-02-01', ignoreNeedlesError: true, encryptIdEntities: ['Alpha'] })
-        .withJHipsterLookup()
-        .withParentBlueprintLookup();
+        .withJHipsterGenerators()
+        .withConfiguredBlueprint();
 
       result.assertFile('src/main/java/com/mycompany/myapp/service/cipher/UserIdCipher.java');
     });

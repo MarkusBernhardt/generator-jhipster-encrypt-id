@@ -6,7 +6,7 @@
   "keywords": [
     "yeoman-generator",
     "jhipster-blueprint",
-    "jhipster-8",
+    "jhipster-9",
     "Id",
     "Encrypt",
     "Encrypt Id"
@@ -31,14 +31,17 @@
   },
   "files": [
     "cli",
-    "generators"
+    "generators",
+    "!**/__*",
+    "!**/*.snap",
+    "!**/*.spec.?(c|m)?(j|t)s"
   ],
   "scripts": {
     "ejslint": "ejslint generators/**/*.ejs",
-    "lint": "eslint .",
+    "lint": "eslint",
     "lint-fix": "npm run ejslint && npm run lint -- --fix",
-    "prettier-check": "prettier --check \"{,**/}*.{md,json,yml,html,js,ts,tsx,css,scss,vue,java}\"",
-    "prettier-format": "prettier --write \"{,**/}*.{md,json,yml,html,js,ts,tsx,css,scss,vue,java}\"",
+    "prettier-check": "prettier --check \"{,**/}*.{md,json,yml,html,cjs,mjs,js,cts,mts,ts,tsx,css,scss,vue,java}\"",
+    "prettier-format": "prettier --write \"{,**/}*.{md,json,yml,html,cjs,mjs,js,cts,mts,ts,tsx,css,scss,vue,java}\"",
     "release": "npm run lint && git push github main && git push github main --tags && npm publish",
     "release:major": "npm version major -a -m \"Update to %s\" && npm run release",
     "release:minor": "npm version minor -a -m \"Update to %s\" && npm run release",
@@ -50,24 +53,22 @@
   },
   "dependencies": {
     "change-case": "^5.4.3",
-    "generator-jhipster": "^8.4.0",
-    "generator-jhipster-encrypt-id": "^0.99.13"
+    "generator-jhipster": "^9.3.0"
   },
   "devDependencies": {
-    "ejs-lint": "2.0.0",
-    "eslint": "8.55.0",
-    "eslint-config-airbnb-base": "15.0.0",
-    "eslint-config-prettier": "9.1.0",
-    "eslint-plugin-import": "2.29.0",
-    "eslint-plugin-prettier": "5.0.1",
-    "prettier": "3.1.0",
-    "vitest": "1.0.2",
-    "yeoman-test": ">=8.0.0-rc.1"
+    "ejs-lint": "2.0.1",
+    "eslint": "10.9.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-prettier": "5.5.6",
+    "globals": "17.11.0",
+    "jiti": "2.7.0",
+    "prettier": "3.9.6",
+    "prettier-plugin-packagejson": "3.0.2",
+    "vitest": "4.1.11",
+    "yeoman-test": ">=10"
   },
   "engines": {
-    "node": "^18.13.0 || >= 20.6.1"
-  },
-  "cacheDirectories": [
-    "node_modules"
-  ]
+    "generator-jhipster": "^9.3.0",
+    "node": "^22.18.0 || >=24.11.0"
+  }
 }

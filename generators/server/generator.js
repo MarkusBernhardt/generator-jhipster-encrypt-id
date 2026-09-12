@@ -1,5 +1,4 @@
 import BaseApplicationGenerator from 'generator-jhipster/generators/base-application';
-import command from './command.mjs';
 
 export default class extends BaseApplicationGenerator {
   initialRun;
@@ -10,20 +9,9 @@ export default class extends BaseApplicationGenerator {
 
   get [BaseApplicationGenerator.INITIALIZING]() {
     return this.asInitializingTaskGroup({
+      // Runs before the prompts of `command.js`, which ask for the entities only on the first run.
       setInitialRun() {
         this.initialRun = this.blueprintConfig.encryptIdEnable === undefined;
-      },
-      async initializingTemplateTask() {
-        this.parseJHipsterArguments(command.arguments);
-        this.parseJHipsterOptions(command.options);
-      },
-    });
-  }
-
-  get [BaseApplicationGenerator.PROMPTING]() {
-    return this.asPromptingTaskGroup({
-      async promptingTemplateTask() {
-        await this.prompt(this.prepareQuestions(command.configs));
       },
     });
   }

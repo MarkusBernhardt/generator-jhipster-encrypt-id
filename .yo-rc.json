@@ -13,7 +13,7 @@
       },
       "encrypt-id-angular": {
         "command": false,
-        "priorities": ["postWriting", "postWritingEntities"],
+        "priorities": ["postWritingEntities"],
         "sbs": null,
         "written": true
       },
@@ -24,13 +24,14 @@
         "written": true
       },
       "server": {
-        "command": false,
-        "priorities": ["initializing", "prompting", "composing"],
+        "command": true,
+        "priorities": ["initializing", "composing"],
         "sbs": true,
         "written": true
       }
     },
-    "jhipsterVersion": "8.7.3",
+    "javascriptBlueprint": true,
+    "jhipsterVersion": "9.3.0",
     "localBlueprint": false,
     "sampleWritten": true,
     "skipCommitHook": true,
