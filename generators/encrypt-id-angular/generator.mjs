@@ -11,6 +11,7 @@ export default class extends BaseApplicationGenerator {
       async postWritingTemplateTask({ application: { clientSrcDir } }) {
         encryptdUtil.convertAngularUserManagement(this, clientSrcDir);
         encryptdUtil.convertAngularUserManagementList(this, clientSrcDir);
+        encryptdUtil.convertAngularUser(this, clientSrcDir);
       },
     });
   }
@@ -18,11 +19,20 @@ export default class extends BaseApplicationGenerator {
   get [BaseApplicationGenerator.POST_WRITING_ENTITIES]() {
     return this.asPostWritingEntitiesTaskGroup({
       async postWritingEntitiesTemplateTask({ application: { clientSrcDir }, entities }) {
+        // The id of the built in User entity is always encrypted, so relationships to it have to be encrypted too.
+        const encryptedClasses = new Set(entities.filter(e => e.enableEncryptId).map(e => e.persistClass));
+        encryptedClasses.add('User');
+
         for (const entity of entities.filter(e => e.enableEncryptId)) {
           encryptdUtil.convertAngularComponent(this, clientSrcDir, entity);
+          encryptdUtil.convertAngularComponentSpecs(this, clientSrcDir, entity, encryptedClasses);
           encryptdUtil.convertAngularDeleteDialog(this, clientSrcDir, entity);
+          encryptdUtil.convertAngularDeleteDialogSpec(this, clientSrcDir, entity);
           encryptdUtil.convertAngularModel(this, clientSrcDir, entity);
+          encryptdUtil.convertAngularRouteSpec(this, clientSrcDir, entity);
           encryptdUtil.convertAngularService(this, clientSrcDir, entity);
+          encryptdUtil.convertAngularServiceSpec(this, clientSrcDir, entity);
+          encryptdUtil.convertAngularTestSamples(this, clientSrcDir, entity);
           encryptdUtil.convertAngularUpdateHtml(this, clientSrcDir, entity);
         }
       },

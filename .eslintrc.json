@@ -10,7 +10,10 @@
   },
   "overrides": [
     {
-      "files": ["**/*.spec.{c,m,}js", "test/**/*.{c,m,}js"]
+      "files": ["**/*.spec.{c,m,}js", "test/**/*.{c,m,}js"],
+      "rules": {
+        "import/extensions": "off"
+      }
     }
   ],
   "rules": {

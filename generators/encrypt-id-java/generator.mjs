@@ -21,6 +21,12 @@ export default class extends BaseApplicationGenerator {
         if (entityConfig.service !== 'serviceImpl') {
           throw new Error('Service with serviceImpl required for entity ' + entityName);
         }
+
+        // The generated criteria expose the database ids as plain LongFilter, which would
+        // defeat the encryption of the ids.
+        if (entityConfig.jpaMetamodelFiltering) {
+          throw new Error('Filtering is not supported for entity ' + entityName + ' with encrypted id');
+        }
       },
     });
   }
@@ -28,6 +34,15 @@ export default class extends BaseApplicationGenerator {
   get [BaseApplicationGenerator.WRITING_ENTITIES]() {
     return this.asWritingEntitiesTaskGroup({
       async writingEntitiesTemplateTask({ application, entities }) {
+        await this.writeFiles({
+          blocks: [
+            javaMainPackageTemplatesBlock({
+              templates: ['service/cipher/IdCipher.java', 'service/cipher/IdCipherException.java'],
+            }),
+          ],
+          context: application,
+        });
+
         await Promise.all(
           entities
             .filter(e => e.enableEncryptId || e.persistClass === 'User')
@@ -35,12 +50,7 @@ export default class extends BaseApplicationGenerator {
               this.writeFiles({
                 blocks: [
                   javaMainPackageTemplatesBlock({
-                    templates: [
-                      'service/cipher/IdCipher.java',
-                      'service/cipher/IdCipherException.java',
-                      'service/cipher/_persistClass_IdCipher.java',
-                      'config/EncryptIdConfiguration.java',
-                    ],
+                    templates: ['service/cipher/_persistClass_IdCipher.java'],
                   }),
                 ],
                 context: { ...application, ...e },
@@ -71,11 +81,16 @@ export default class extends BaseApplicationGenerator {
   get [BaseApplicationGenerator.POST_WRITING_ENTITIES]() {
     return this.asPostWritingEntitiesTaskGroup({
       async postWritingEntitiesTemplateTask({ application: { mainJavaPackageDir, testJavaPackageDir, packageName }, entities }) {
+        // The id of the built in User entity is always encrypted, so relationships to it have to be encrypted too.
+        const encryptedClasses = new Set(entities.filter(e => e.enableEncryptId).map(e => e.persistClass));
+        encryptedClasses.add('User');
+
         for (const entity of entities.filter(e => e.enableEncryptId)) {
           encryptdUtil.convertJavaDto(this, mainJavaPackageDir, testJavaPackageDir, entity);
-          encryptdUtil.convertJavaMapper(this, mainJavaPackageDir, packageName, entity);
-          encryptdUtil.convertJavaMapperTest(this, testJavaPackageDir, packageName, entity);
+          const cipherClasses = encryptdUtil.convertJavaMapper(this, mainJavaPackageDir, packageName, entity, encryptedClasses);
+          encryptdUtil.convertJavaMapperTest(this, testJavaPackageDir, packageName, entity, cipherClasses);
           encryptdUtil.convertJavaResource(this, mainJavaPackageDir, packageName, entity);
+          encryptdUtil.convertJavaResourceIT(this, testJavaPackageDir, packageName, entity);
           encryptdUtil.convertJavaService(this, mainJavaPackageDir, packageName, entity);
         }
       },

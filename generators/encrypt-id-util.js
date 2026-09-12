@@ -1,14 +1,34 @@
 import * as changeCase from 'change-case';
 
-function findRegexNeedle(generator, filePath, needle) {
-  let flag = false;
+/* -------------------------------------------------------------------------- */
+/* generic helpers                                                            */
+/* -------------------------------------------------------------------------- */
+
+const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Build a regular expression for a literal needle that only matches whole words.
+ *
+ * `Long id` must not match `Long idNumber` and `private Long id` must not match
+ * `private Long identifier`, otherwise unrelated fields get converted as well.
+ */
+function literalRegex(needle) {
+  const prefix = /^\w/.test(needle) ? '\\b' : '';
+  const suffix = /\w$/.test(needle) ? '\\b' : '';
+  return new RegExp(`${prefix}${escapeRegExp(needle)}${suffix}`, 'g');
+}
+
+function readFileContent(generator, filePath) {
+  let fileContent;
   generator.editFile(filePath, { ignoreNonExisting: true }, content => {
-    if (content.includes(needle)) {
-      flag = true;
-    }
+    fileContent = content;
     return content;
   });
-  return flag;
+  return fileContent;
+}
+
+function transformFile(generator, filePath, transform) {
+  generator.editFile(filePath, { ignoreNonExisting: true }, content => transform(content));
 }
 
 function replaceRegexNeedles(generator, filePath, replaceNeedles) {
@@ -17,54 +37,164 @@ function replaceRegexNeedles(generator, filePath, replaceNeedles) {
   });
 }
 
-function replaceLongToStringNeedles(generator, filePath, replaceNeedles) {
-  replaceNeedles.forEach(needle => {
-    generator.editFile(filePath, { ignoreNonExisting: true }, contents => contents.replaceAll(needle, needle.replace('Long', 'String')));
+function replaceLiteralNeedles(generator, filePath, needles, from, to) {
+  needles.forEach(needle => {
+    const regex = literalRegex(needle);
+    const replacement = needle.replace(from, to);
+    generator.editFile(filePath, { ignoreNonExisting: true }, contents => contents.replace(regex, replacement));
   });
+}
+
+function replaceLongToStringNeedles(generator, filePath, replaceNeedles) {
+  replaceLiteralNeedles(generator, filePath, replaceNeedles, 'Long', 'String');
 }
 
 function replaceNumberToStringNeedles(generator, filePath, replaceNeedles) {
-  replaceNeedles.forEach(needle => {
-    generator.editFile(filePath, { ignoreNonExisting: true }, contents => contents.replaceAll(needle, needle.replace('number', 'string')));
-  });
+  replaceLiteralNeedles(generator, filePath, replaceNeedles, 'number', 'string');
 }
 
-function replaceNumberToTextNeedles(generator, filePath, replaceNeedles) {
-  replaceNeedles.forEach(needle => {
-    generator.editFile(filePath, { ignoreNonExisting: true }, contents => contents.replaceAll(needle, needle.replace('number', 'text')));
-  });
+/** Directory prefix of an entity, `''` unless the entity lives in its own package. */
+function entityDir({ entityPackage }) {
+  return entityPackage ? `${entityPackage.replace(/\./g, '/')}/` : '';
 }
+
+/** Java package of an entity, equal to the application package unless the entity lives in its own package. */
+function entityPackageName(packageName, { entityPackage }) {
+  return entityPackage ? `${packageName}.${entityPackage}` : packageName;
+}
+
+const cipherField = persistClass => `${changeCase.camelCase(persistClass)}IdCipher`;
+
+/** Insert a snippet right before the closing brace of the top level type. */
+function appendToClassBody(content, snippet) {
+  const index = content.lastIndexOf('}');
+  if (index < 0) {
+    return content;
+  }
+  return `${content.slice(0, index)}${snippet}\n${content.slice(index)}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* angular                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const entityDirName = persistClass => changeCase.kebabCase(persistClass);
 
 function convertAngularComponent(generator, clientSrcDir, entity) {
   const { persistClass } = entity;
-  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/list/${changeCase.kebabCase(persistClass)}.component.ts`;
+  const name = entityDirName(persistClass);
+  const path = `${clientSrcDir}/app/entities/${name}/list/${name}.component.ts`;
 
   replaceNumberToStringNeedles(generator, path, ['): number => this.']);
 }
 
 function convertAngularDeleteDialog(generator, clientSrcDir, entity) {
   const { persistClass } = entity;
-  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/delete/${changeCase.kebabCase(
-    persistClass,
-  )}-delete-dialog.component.ts`;
+  const name = entityDirName(persistClass);
+  const path = `${clientSrcDir}/app/entities/${name}/delete/${name}-delete-dialog.component.ts`;
 
   replaceNumberToStringNeedles(generator, path, ['confirmDelete(id: number)']);
 }
 
+function convertAngularDeleteDialogSpec(generator, clientSrcDir, entity) {
+  const { persistClass } = entity;
+  const name = entityDirName(persistClass);
+  const path = `${clientSrcDir}/app/entities/${name}/delete/${name}-delete-dialog.component.spec.ts`;
+
+  const regExNeedles = [
+    { regex: /confirmDelete\((\d+)\)/gm, content: "confirmDelete('$1')" },
+    { regex: /(delete\)\.toHaveBeenCalledWith)\((\d+)\)/gm, content: "$1('$2')" },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
+}
+
 function convertAngularModel(generator, clientSrcDir, entity) {
   const { persistClass } = entity;
-  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/${changeCase.kebabCase(persistClass)}.model.ts`;
+  const name = entityDirName(persistClass);
+  const path = `${clientSrcDir}/app/entities/${name}/${name}.model.ts`;
 
   replaceNumberToStringNeedles(generator, path, ['id: number;']);
 }
 
+function convertAngularRouteSpec(generator, clientSrcDir, entity) {
+  const { persistClass } = entity;
+  const name = entityDirName(persistClass);
+  const path = `${clientSrcDir}/app/entities/${name}/route/${name}-routing-resolve.service.spec.ts`;
+
+  const regExNeedles = [
+    { regex: /\{ id: (\d+) \}/gm, content: "{ id: '$1' }" },
+    { regex: /(find\)\.toBeCalledWith|find\)\.toHaveBeenCalledWith)\((\d+)\)/gm, content: "$1('$2')" },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
+}
+
 function convertAngularService(generator, clientSrcDir, entity) {
   const { persistClass } = entity;
-  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/service/${changeCase.kebabCase(
-    persistClass,
-  )}.service.ts`;
+  const name = entityDirName(persistClass);
+  const path = `${clientSrcDir}/app/entities/${name}/service/${name}.service.ts`;
 
   replaceNumberToStringNeedles(generator, path, ['find(id: number)', 'delete(id: number)', '>): number {']);
+}
+
+function convertAngularServiceSpec(generator, clientSrcDir, entity) {
+  const { persistClass } = entity;
+  const name = entityDirName(persistClass);
+  const path = `${clientSrcDir}/app/entities/${name}/service/${name}.service.spec.ts`;
+
+  const regExNeedles = [
+    { regex: /(service\.(?:find|delete))\((\d+)\)/gm, content: "$1('$2')" },
+    { regex: /"id":(\d+)/gm, content: '"id":"$1"' },
+    { regex: /\{ id: (\d+) \}/gm, content: "{ id: '$1' }" },
+  ];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
+}
+
+/**
+ * Quote the numeric ids of the jest fixtures. Ids of relationships to entities that are
+ * not encrypted have to stay numeric.
+ */
+function quoteJsonIds(content, encryptedClasses) {
+  const preserved = [];
+  const marker = index => `/*encrypt-id-keep-${index}*/`;
+  const typedIdRegex = /(:\s*I(\w+)(?:\[\])?\s*=\s*\[?\s*\{\s*"id"\s*:\s*)(\d+)/g;
+
+  let quoted = content.replace(typedIdRegex, (match, prefix, otherClass) => {
+    if (encryptedClasses.has(otherClass)) {
+      return match;
+    }
+    preserved.push(match);
+    return marker(preserved.length - 1);
+  });
+  quoted = quoted.replace(/("id"\s*:\s*)(\d+)/g, '$1"$2"');
+  return quoted.replace(/\/\*encrypt-id-keep-(\d+)\*\//g, (match, index) => preserved[Number(index)]);
+}
+
+/** The component tests use the numeric ids of the entity and of all its relationships. */
+function convertAngularComponentSpecs(generator, clientSrcDir, entity, encryptedClasses) {
+  const { persistClass } = entity;
+  const name = entityDirName(persistClass);
+  const paths = [
+    `${clientSrcDir}/app/entities/${name}/detail/${name}-detail.component.spec.ts`,
+    `${clientSrcDir}/app/entities/${name}/list/${name}.component.spec.ts`,
+    `${clientSrcDir}/app/entities/${name}/update/${name}-update.component.spec.ts`,
+  ];
+
+  for (const path of paths) {
+    transformFile(generator, path, content => quoteJsonIds(content, encryptedClasses));
+  }
+}
+
+function convertAngularTestSamples(generator, clientSrcDir, entity) {
+  const { persistClass } = entity;
+  const name = entityDirName(persistClass);
+  const path = `${clientSrcDir}/app/entities/${name}/${name}.test-samples.ts`;
+
+  const regExNeedles = [{ regex: /^(\s*)id: (\d+)(,?)$/gm, content: "$1id: '$2'$3" }];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
 }
 
 function convertAngularUserManagement(generator, clientSrcDir) {
@@ -79,14 +209,44 @@ function convertAngularUserManagementList(generator, clientSrcDir) {
   replaceNumberToStringNeedles(generator, path, ['item: User): number']);
 }
 
+/**
+ * The `User` entity is always encrypted, so the shared user model used by the
+ * relationships of the other entities has to use a string id as well.
+ */
+function convertAngularUser(generator, clientSrcDir) {
+  const modelPath = `${clientSrcDir}/app/entities/user/user.model.ts`;
+  const servicePath = `${clientSrcDir}/app/entities/user/service/user.service.ts`;
+  const serviceSpecPath = `${clientSrcDir}/app/entities/user/service/user.service.spec.ts`;
+  const testSamplesPath = `${clientSrcDir}/app/entities/user/user.test-samples.ts`;
+
+  replaceNumberToStringNeedles(generator, modelPath, ['id: number;']);
+  replaceNumberToStringNeedles(generator, servicePath, ['find(id: number)', 'delete(id: number)', '>): number {']);
+
+  replaceRegexNeedles(generator, serviceSpecPath, [
+    { regex: /(service\.(?:find|delete))\((\d+)\)/gm, content: "$1('$2')" },
+    { regex: /"id":(\d+)/gm, content: '"id":"$1"' },
+    { regex: /\{ id: (\d+) \}/gm, content: "{ id: '$1' }" },
+  ]);
+  replaceRegexNeedles(generator, testSamplesPath, [{ regex: /^(\s*)id: (\d+)(,?)$/gm, content: "$1id: '$2'$3" }]);
+}
+
+/**
+ * Only the id input has to become a text input. Converting every number input
+ * would also break the numeric fields of the entity.
+ */
 function convertAngularUpdateHtml(generator, clientSrcDir, entity) {
   const { persistClass } = entity;
-  const path = `${clientSrcDir}/app/entities/${changeCase.kebabCase(persistClass)}/update/${changeCase.kebabCase(
-    persistClass,
-  )}-update.component.html`;
+  const name = entityDirName(persistClass);
+  const path = `${clientSrcDir}/app/entities/${name}/update/${name}-update.component.html`;
 
-  replaceNumberToTextNeedles(generator, path, ['<input type="number"']);
+  const regExNeedles = [{ regex: /<input type="number"([^>]*\bname="id")/gm, content: '<input type="text"$1' }];
+
+  replaceRegexNeedles(generator, path, regExNeedles);
 }
+
+/* -------------------------------------------------------------------------- */
+/* java - application wide                                                    */
+/* -------------------------------------------------------------------------- */
 
 function convertJavaApplicationProperties(generator, mainJavaPackageDir) {
   const applicationPropertiesPath = `${mainJavaPackageDir}/config/ApplicationProperties.java`;
@@ -134,15 +294,20 @@ function convertJavaApplicationYml(generator, mainJavaResourceDir) {
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* java - entity                                                              */
+/* -------------------------------------------------------------------------- */
+
 function convertJavaDto(generator, mainJavaPackageDir, testJavaPackageDir, entity) {
-  const { persistClass, entityPackage = '' } = entity;
+  const { persistClass } = entity;
+  const dir = entityDir(entity);
   const dtoName = `${persistClass}DTO`;
-  const dtoPath = `${mainJavaPackageDir}/${entityPackage}service/dto/${dtoName}.java`;
+  const dtoPath = `${mainJavaPackageDir}/${dir}service/dto/${dtoName}.java`;
 
   replaceLongToStringNeedles(generator, dtoPath, ['private Long id', 'Long getId()', 'setId(Long id)']);
 
   if (!entity.builtIn) {
-    const dtoTestPath = `${testJavaPackageDir}/${entityPackage}service/dto/${dtoName}Test.java`;
+    const dtoTestPath = `${testJavaPackageDir}/${dir}service/dto/${dtoName}Test.java`;
     const dtoVarName = `${changeCase.camelCase(persistClass)}DTO`;
     const regExNeedles = [
       {
@@ -158,93 +323,175 @@ function convertJavaDto(generator, mainJavaPackageDir, testJavaPackageDir, entit
   }
 }
 
-function convertJavaMapper(generator, mainJavaPackageDir, packageName, entity) {
-  const { persistClass } = entity;
-  const resourcePath = `${mainJavaPackageDir}/service/mapper/${persistClass}Mapper.java`;
-
-  const regExNeedles = [
-    {
-      regex: /import org.mapstruct/gm,
-      content: `import ${packageName}.service.cipher.${persistClass}IdCipher;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.mapstruct`,
-    },
-    {
-      regex: /public interface/gm,
-      content: `public abstract class`,
-    },
-    {
-      regex: /extends/gm,
-      content: `implements`,
-    },
-    {
-      regex: /^ *([A-Za-z0-9]+ toDto[A-Za-z0-9]+)/gm,
-      content: `public abstract $1`,
-    },
-    {
-      regex: /^ *([A-Za-z0-9]+ toEntity[A-Za-z0-9]+)/gm,
-      content: `public abstract $1`,
-    },
-  ];
-
-  if (findRegexNeedle(generator, resourcePath, `${persistClass} toEntity`)) {
-    regExNeedles.push({
-      regex: new RegExp(`${persistClass} toEntity`, 'gm'),
-      content: `@Mapping(target = "id", expression = "java(${changeCase.camelCase(
-        persistClass,
-      )}IdCipher.decrypt(dto.getId()))")\npublic abstract ${persistClass} toEntity`,
-    });
-  } else {
-    regExNeedles.push({
-      regex: /> \{/gm,
-      content: `> {\n@Mapping(target = "id", expression = "java(${changeCase.camelCase(
-        persistClass,
-      )}IdCipher.decrypt(dto.getId()))")\npublic abstract ${persistClass} toEntity(${persistClass}DTO dto);`,
-    });
+/** Collect the DTO types the given DTO source references, e.g. `Beta` for `private BetaDTO beta;`. */
+function collectNestedDtoClasses(dtoContent = '') {
+  const classes = new Set();
+  const regex = /^\s*private\s+(?:Set<\s*)?(\w+)DTO\s*>?\s+\w+/gm;
+  let match = regex.exec(dtoContent);
+  while (match !== null) {
+    classes.add(match[1]);
+    match = regex.exec(dtoContent);
   }
-
-  if (findRegexNeedle(generator, resourcePath, `${persistClass}DTO toDto`)) {
-    regExNeedles.push({
-      regex: new RegExp(`${persistClass}DTO toDto`, 'gm'),
-      content: `@Mapping(target = "id", expression = "java(${changeCase.camelCase(
-        persistClass,
-      )}IdCipher.encrypt(s.getId()))")\npublic abstract ${persistClass}DTO toDto`,
-    });
-  } else {
-    regExNeedles.push({
-      regex: /> \{/gm,
-      content: `> {\n@Mapping(target = "id", expression = "java(${changeCase.camelCase(
-        persistClass,
-      )}IdCipher.encrypt(s.getId()))")\npublic abstract ${persistClass}DTO toDto(${persistClass} s);`,
-    });
-  }
-
-  regExNeedles.push({
-    regex: /> \{/gm,
-    content: `> {\n    @Autowired\n    protected ${persistClass}IdCipher ${changeCase.camelCase(
-      persistClass,
-    )}IdCipher;\n\npublic void set${persistClass}IdCipher(${persistClass}IdCipher ${changeCase.camelCase(persistClass)}IdCipher) {
-        this.${changeCase.camelCase(persistClass)}IdCipher = ${changeCase.camelCase(persistClass)}IdCipher;
-    }`,
-  });
-
-  replaceRegexNeedles(generator, resourcePath, regExNeedles);
+  return classes;
 }
 
-function convertJavaMapperTest(generator, testJavaPackageDir, packageName, entity) {
+function addIdMapping(source, { declarationRegex, annotation, fallback }) {
+  const match = declarationRegex.exec(source);
+  if (match === null) {
+    return appendToClassBody(source, fallback);
+  }
+  return source.replace(
+    declarationRegex,
+    (full, indent, declaration, parameter) => `${indent}${annotation(parameter)}\n${indent}${declaration}`,
+  );
+}
+
+/**
+ * Rewrite a MapStruct entity mapper so that
+ * - the id of the entity itself is encrypted/decrypted,
+ * - the ids of all *related* encrypted entities are encrypted/decrypted as well,
+ * - `partialUpdate` never writes the (encrypted) id into the entity.
+ *
+ * Returns the set of entities whose cipher is used by the mapper.
+ */
+function convertJavaMapper(generator, mainJavaPackageDir, packageName, entity, encryptedClasses) {
   const { persistClass } = entity;
-  const resourcePath = `${testJavaPackageDir}/service/mapper/${persistClass}MapperTest.java`;
+  const dir = entityDir(entity);
+  const mapperPath = `${mainJavaPackageDir}/${dir}service/mapper/${persistClass}Mapper.java`;
+  const dtoPath = `${mainJavaPackageDir}/${dir}service/dto/${persistClass}DTO.java`;
+
+  const nestedDtoClasses = [...collectNestedDtoClasses(readFileContent(generator, dtoPath))].filter(
+    otherClass => otherClass !== persistClass && encryptedClasses.has(otherClass),
+  );
+  const cipherClasses = new Set([persistClass, ...nestedDtoClasses]);
+  const selfCipher = cipherField(persistClass);
+
+  transformFile(generator, mapperPath, content => {
+    // MapStruct can only add the ciphers to a class, an interface cannot hold state.
+    let source = content.replace(/\bpublic interface\s+(\w+Mapper)\b/, 'public abstract class $1');
+    source = source.replace(/\bextends\s+EntityMapper\s*</, 'implements EntityMapper<');
+
+    // `default` is not a valid modifier for a class method.
+    source = source.replace(/^([ \t]*)default\s+/gm, '$1public ');
+
+    // Implicitly public abstract interface methods have to be declared explicitly in a class.
+    source = source.replace(
+      /^([ \t]*)(?!public\b|protected\b|private\b|abstract\b|@)([\w.]+(?:<[^>\n]*>)?)(\s+)(toDto\w*|toEntity\w*|partialUpdate)(\s*\([^)]*\)\s*;)/gm,
+      '$1public abstract $2$3$4$5',
+    );
+
+    // Relationships: `@Mapping(target = "id", source = "id")` would expose the plain id of the related entity.
+    source = source.replace(/@Mapping\(target = "id", source = "id"\)([\s\S]*?\);)/g, (match, tail) => {
+      const declaration = /(\w+)DTO\s+toDto\w+\s*\(\s*(\w+)\s+(\w+)\s*\)\s*;/.exec(tail);
+      if (declaration === null) {
+        return match;
+      }
+      const [, otherClass, otherParamType, otherParamName] = declaration;
+      if (otherClass !== otherParamType || !encryptedClasses.has(otherClass)) {
+        return match;
+      }
+      cipherClasses.add(otherClass);
+      return `@Mapping(target = "id", expression = "java(${cipherField(otherClass)}.encrypt(${otherParamName}.getId()))")${tail}`;
+    });
+
+    // The id of the entity itself. MapStruct copies the expression verbatim into the generated
+    // implementation, so the parameter name of the declared method has to be used.
+    source = addIdMapping(source, {
+      declarationRegex: new RegExp(
+        `^([ \\t]*)((?:public abstract\\s+)?${persistClass}DTO\\s+toDto\\s*\\(\\s*${persistClass}\\s+(\\w+)\\s*\\)\\s*;)`,
+        'm',
+      ),
+      annotation: parameter => `@Mapping(target = "id", expression = "java(${selfCipher}.encrypt(${parameter}.getId()))")`,
+      fallback:
+        `\n    @Mapping(target = "id", expression = "java(${selfCipher}.encrypt(s.getId()))")\n` +
+        `    public abstract ${persistClass}DTO toDto(${persistClass} s);\n`,
+    });
+
+    source = addIdMapping(source, {
+      declarationRegex: new RegExp(
+        `^([ \\t]*)((?:public abstract\\s+)?${persistClass}\\s+toEntity\\s*\\(\\s*${persistClass}DTO\\s+(\\w+)\\s*\\)\\s*;)`,
+        'm',
+      ),
+      annotation: parameter => `@Mapping(target = "id", expression = "java(${selfCipher}.decrypt(${parameter}.getId()))")`,
+      fallback:
+        `\n    @Mapping(target = "id", expression = "java(${selfCipher}.decrypt(dto.getId()))")\n` +
+        `    public abstract ${persistClass} toEntity(${persistClass}DTO dto);\n`,
+    });
+
+    // A partial update must never write the id, MapStruct would parse the encrypted id as a number.
+    source = appendToClassBody(
+      source,
+      `
+    @Named("partialUpdate")
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    public abstract void partialUpdate(@MappingTarget ${persistClass} entity, ${persistClass}DTO dto);
+`,
+    );
+
+    // Without these methods MapStruct generates nested mappings that parse the encrypted id as a number.
+    source = nestedDtoClasses.reduce(
+      (current, otherClass) =>
+        appendToClassBody(
+          current,
+          `
+    @BeanMapping(ignoreByDefault = true)
+    @Mapping(target = "id", expression = "java(${cipherField(otherClass)}.decrypt(dto.getId()))")
+    public abstract ${otherClass} toEntity${otherClass}(${otherClass}DTO dto);
+`,
+        ),
+      source,
+    );
+
+    const sortedCipherClasses = [...cipherClasses].sort();
+
+    const fields = sortedCipherClasses
+      .map(
+        cipherClass => `
+    @Autowired
+    protected ${cipherClass}IdCipher ${cipherField(cipherClass)};
+
+    public void set${cipherClass}IdCipher(${cipherClass}IdCipher ${cipherField(cipherClass)}) {
+        this.${cipherField(cipherClass)} = ${cipherField(cipherClass)};
+    }
+`,
+      )
+      .join('');
+    source = source.replace(/(public abstract class \w+Mapper[^{]*\{)/, (match, classDeclaration) => `${classDeclaration}\n${fields}`);
+
+    const imports = sortedCipherClasses.map(cipherClass => `import ${packageName}.service.cipher.${cipherClass}IdCipher;`).join('\n');
+    return source.replace(
+      /import org\.mapstruct/,
+      () => `${imports}\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.mapstruct`,
+    );
+  });
+
+  return cipherClasses;
+}
+
+function convertJavaMapperTest(generator, testJavaPackageDir, packageName, entity, cipherClasses) {
+  const { persistClass } = entity;
+  const dir = entityDir(entity);
+  const resourcePath = `${testJavaPackageDir}/${dir}service/mapper/${persistClass}MapperTest.java`;
+  const mapperVar = changeCase.camelCase(persistClass);
+  const sortedCipherClasses = [...cipherClasses].sort();
+
+  const imports = sortedCipherClasses.map(cipherClass => `import ${packageName}.service.cipher.${cipherClass}IdCipher;`).join('\n');
+  const setters = sortedCipherClasses
+    .map(cipherClass => `${mapperVar}Mapper.set${cipherClass}IdCipher(new ${cipherClass}IdCipher(applicationProperties));`)
+    .join('\n');
 
   const regExNeedles = [
     {
       regex: /import org.junit.jupiter.api.Test;/gm,
-      content: `import ${packageName}.service.cipher.${persistClass}IdCipher;\nimport ${packageName}.config.ApplicationProperties;\nimport org.junit.jupiter.api.Test;`,
+      content: `${imports}\nimport ${packageName}.config.ApplicationProperties;\nimport org.junit.jupiter.api.Test;`,
     },
     {
-      regex: new RegExp(`${changeCase.camelCase(persistClass)}Mapper = new ${persistClass}MapperImpl\\(\\);`, 'gm'),
-      content: `${changeCase.camelCase(
-        persistClass,
-      )}Mapper = new ${persistClass}MapperImpl();\nApplicationProperties applicationProperties = new ApplicationProperties();\napplicationProperties.getEncryptId().setKey("test");\n${changeCase.camelCase(
-        persistClass,
-      )}Mapper.set${persistClass}IdCipher(new ${persistClass}IdCipher(applicationProperties));`,
+      regex: new RegExp(`${mapperVar}Mapper = new ${persistClass}MapperImpl\\(\\);`, 'gm'),
+      content:
+        `${mapperVar}Mapper = new ${persistClass}MapperImpl();\n` +
+        `ApplicationProperties applicationProperties = new ApplicationProperties();\n` +
+        `applicationProperties.getEncryptId().setKey("test");\n${setters}`,
     },
   ];
 
@@ -252,97 +499,137 @@ function convertJavaMapperTest(generator, testJavaPackageDir, packageName, entit
 }
 
 function convertJavaResource(generator, mainJavaPackageDir, packageName, entity) {
-  const { persistClass, entityPackage = '' } = entity;
-  const resourcePath = `${mainJavaPackageDir}/${entityPackage}web/rest/${persistClass}Resource.java`;
+  const { persistClass } = entity;
+  const dir = entityDir(entity);
+  const entityPackage = entityPackageName(packageName, entity);
+  const resourcePath = `${mainJavaPackageDir}/${dir}web/rest/${persistClass}Resource.java`;
+  const entityVar = changeCase.camelCase(persistClass);
 
   replaceLongToStringNeedles(generator, resourcePath, ['Long id']);
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.${persistClass}DTO;`, 'gm'),
-      content: `import ${packageName}.service.cipher.${persistClass}IdCipher;\nimport ${packageName}.service.dto.${persistClass}DTO;\n`,
+      regex: new RegExp(`import ${escapeRegExp(entityPackage)}\\.service\\.dto\\.${persistClass}DTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.${persistClass}IdCipher;\nimport ${entityPackage}.service.dto.${persistClass}DTO;\n`,
     },
     {
-      regex: new RegExp(`private final ${persistClass}Repository ${changeCase.camelCase(persistClass)}Repository;`, 'gm'),
-      content: `private final ${persistClass}Repository ${changeCase.camelCase(
-        persistClass,
-      )}Repository;\n\nprivate final ${persistClass}IdCipher ${changeCase.camelCase(persistClass)}IdCipher;`,
+      regex: new RegExp(`private final ${persistClass}Repository ${entityVar}Repository;`, 'gm'),
+      content: `private final ${persistClass}Repository ${entityVar}Repository;\n\nprivate final ${persistClass}IdCipher ${entityVar}IdCipher;`,
     },
     {
-      regex: new RegExp(` {4}${persistClass}Repository ${changeCase.camelCase(persistClass)}Repository`, 'gm'),
-      content: `${persistClass}Repository ${changeCase.camelCase(persistClass)}Repository,\n${persistClass}IdCipher ${changeCase.camelCase(
-        persistClass,
-      )}IdCipher`,
+      regex: new RegExp(` {4}${persistClass}Repository ${entityVar}Repository`, 'gm'),
+      content: `${persistClass}Repository ${entityVar}Repository,\n${persistClass}IdCipher ${entityVar}IdCipher`,
     },
     {
-      regex: new RegExp(`this.${changeCase.camelCase(persistClass)}Repository = ${changeCase.camelCase(persistClass)}Repository;`, 'gm'),
-      content: `this.${changeCase.camelCase(persistClass)}Repository = ${changeCase.camelCase(
-        persistClass,
-      )}Repository;\nthis.${changeCase.camelCase(persistClass)}IdCipher = ${changeCase.camelCase(persistClass)}IdCipher;`,
+      regex: new RegExp(`this.${entityVar}Repository = ${entityVar}Repository;`, 'gm'),
+      content: `this.${entityVar}Repository = ${entityVar}Repository;\nthis.${entityVar}IdCipher = ${entityVar}IdCipher;`,
     },
     {
-      regex: new RegExp(`${changeCase.camelCase(persistClass)}Repository.existsById\\(id\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}Repository.existsById(${changeCase.camelCase(persistClass)}IdCipher.decrypt(id))`,
+      regex: new RegExp(`${entityVar}Repository.existsById\\(id\\)`, 'gm'),
+      content: `${entityVar}Repository.existsById(${entityVar}IdCipher.decrypt(id))`,
     },
   ];
 
   replaceRegexNeedles(generator, resourcePath, regExNeedles);
 }
 
-function convertJavaService(generator, mainJavaPackageDir, packageName, entity) {
-  const { persistClass, entityPackage = '' } = entity;
+/**
+ * The generated integration test talks to the REST API, so it has to use encrypted
+ * ids in the urls and expect encrypted ids in the responses.
+ */
+function convertJavaResourceIT(generator, testJavaPackageDir, packageName, entity) {
+  const { persistClass } = entity;
+  const dir = entityDir(entity);
+  const entityPackage = entityPackageName(packageName, entity);
+  const resourceITPath = `${testJavaPackageDir}/${dir}web/rest/${persistClass}ResourceIT.java`;
+  const entityVar = changeCase.camelCase(persistClass);
+  const dtoVar = `${entityVar}DTO`;
+  const cipherVar = cipherField(persistClass);
 
-  const servicePath = `${mainJavaPackageDir}/${entityPackage}service/${persistClass}Service.java`;
-  const serviceImplPath = `${mainJavaPackageDir}/${entityPackage}service/impl/${persistClass}ServiceImpl.java`;
+  const regExNeedles = [
+    {
+      regex: new RegExp(`import ${escapeRegExp(entityPackage)}\\.service\\.dto\\.${persistClass}DTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.${persistClass}IdCipher;\nimport ${entityPackage}.service.dto.${persistClass}DTO;`,
+    },
+    {
+      regex: new RegExp(`private MockMvc rest${persistClass}MockMvc;`, 'gm'),
+      content: `private MockMvc rest${persistClass}MockMvc;\n\n    @Autowired\n    private ${persistClass}IdCipher ${cipherVar};`,
+    },
+    // The response contains the encrypted id, not the numeric database id.
+    {
+      regex: new RegExp(`\\b${entityVar}\\.getId\\(\\)\\.intValue\\(\\)`, 'gm'),
+      content: `${cipherVar}.encrypt(${entityVar}.getId())`,
+    },
+    // A partial update sends the entity itself, its id has to be encrypted as well.
+    {
+      regex: new RegExp(`om\\.writeValueAsBytes\\(partialUpdated${persistClass}\\)`, 'gm'),
+      content: `om.writeValueAsBytes(${entityVar}Mapper.toDto(partialUpdated${persistClass}))`,
+    },
+  ];
+
+  replaceRegexNeedles(generator, resourceITPath, regExNeedles);
+
+  // Every id used as a path variable has to be encrypted, unless it already comes from a DTO.
+  transformFile(generator, resourceITPath, content =>
+    content.replace(/ENTITY_API_URL_ID,\s*([A-Za-z_][A-Za-z0-9_.]*(?:\(\))?)/g, (match, expression) =>
+      expression.startsWith(`${dtoVar}.`) ? match : `ENTITY_API_URL_ID, ${cipherVar}.encrypt(${expression})`,
+    ),
+  );
+}
+
+function convertJavaService(generator, mainJavaPackageDir, packageName, entity) {
+  const { persistClass } = entity;
+  const dir = entityDir(entity);
+  const entityPackage = entityPackageName(packageName, entity);
+  const entityVar = changeCase.camelCase(persistClass);
+
+  const servicePath = `${mainJavaPackageDir}/${dir}service/${persistClass}Service.java`;
+  const serviceImplPath = `${mainJavaPackageDir}/${dir}service/impl/${persistClass}ServiceImpl.java`;
 
   replaceLongToStringNeedles(generator, servicePath, ['findOne(Long id)', 'delete(Long id)']);
   replaceLongToStringNeedles(generator, serviceImplPath, ['findOne(Long id)', 'delete(Long id)']);
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.${persistClass}DTO;`, 'gm'),
-      content: `import ${packageName}.service.cipher.${persistClass}IdCipher;\nimport ${packageName}.service.dto.${persistClass}DTO;\n`,
+      regex: new RegExp(`import ${escapeRegExp(entityPackage)}\\.service\\.dto\\.${persistClass}DTO;`, 'gm'),
+      content: `import ${packageName}.service.cipher.${persistClass}IdCipher;\nimport ${entityPackage}.service.dto.${persistClass}DTO;\n`,
     },
     {
-      regex: new RegExp(`private final ${persistClass}Mapper ${changeCase.camelCase(persistClass)}Mapper;`, 'gm'),
-      content: `private final ${persistClass}Mapper ${changeCase.camelCase(
-        persistClass,
-      )}Mapper;\n\nprivate final ${persistClass}IdCipher ${changeCase.camelCase(persistClass)}IdCipher;`,
+      regex: new RegExp(`private final ${persistClass}Mapper ${entityVar}Mapper;`, 'gm'),
+      content: `private final ${persistClass}Mapper ${entityVar}Mapper;\n\nprivate final ${persistClass}IdCipher ${entityVar}IdCipher;`,
     },
     {
-      regex: new RegExp(` {4}${persistClass}Mapper ${changeCase.camelCase(persistClass)}Mapper`, 'gm'),
-      content: `${persistClass}Mapper ${changeCase.camelCase(persistClass)}Mapper,\n${persistClass}IdCipher ${changeCase.camelCase(
-        persistClass,
-      )}IdCipher`,
+      regex: new RegExp(` {4}${persistClass}Mapper ${entityVar}Mapper`, 'gm'),
+      content: `${persistClass}Mapper ${entityVar}Mapper,\n${persistClass}IdCipher ${entityVar}IdCipher`,
     },
     {
-      regex: new RegExp(`this.${changeCase.camelCase(persistClass)}Mapper = ${changeCase.camelCase(persistClass)}Mapper;`, 'gm'),
-      content: `this.${changeCase.camelCase(persistClass)}Mapper = ${changeCase.camelCase(
-        persistClass,
-      )}Mapper;\nthis.${changeCase.camelCase(persistClass)}IdCipher = ${changeCase.camelCase(persistClass)}IdCipher;`,
+      regex: new RegExp(`this.${entityVar}Mapper = ${entityVar}Mapper;`, 'gm'),
+      content: `this.${entityVar}Mapper = ${entityVar}Mapper;\nthis.${entityVar}IdCipher = ${entityVar}IdCipher;`,
     },
     {
-      regex: new RegExp(`${changeCase.camelCase(persistClass)}DTO.getId\\(\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}IdCipher.decrypt(${changeCase.camelCase(persistClass)}DTO.getId())`,
+      regex: new RegExp(`${entityVar}DTO.getId\\(\\)`, 'gm'),
+      content: `${entityVar}IdCipher.decrypt(${entityVar}DTO.getId())`,
     },
     {
-      regex: new RegExp(`${changeCase.camelCase(persistClass)}Repository.findById\\(id\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}Repository.findById(${changeCase.camelCase(persistClass)}IdCipher.decrypt(id))`,
+      regex: new RegExp(`${entityVar}Repository.findById\\(id\\)`, 'gm'),
+      content: `${entityVar}Repository.findById(${entityVar}IdCipher.decrypt(id))`,
     },
     {
-      regex: new RegExp(`${changeCase.camelCase(persistClass)}Repository.deleteById\\(id\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}Repository.deleteById(${changeCase.camelCase(persistClass)}IdCipher.decrypt(id))`,
+      regex: new RegExp(`${entityVar}Repository.deleteById\\(id\\)`, 'gm'),
+      content: `${entityVar}Repository.deleteById(${entityVar}IdCipher.decrypt(id))`,
     },
     {
-      regex: new RegExp(`${changeCase.camelCase(persistClass)}Repository.findOneWithEagerRelationships\\(id\\)`, 'gm'),
-      content: `${changeCase.camelCase(persistClass)}Repository.findOneWithEagerRelationships(${changeCase.camelCase(
-        persistClass,
-      )}IdCipher.decrypt(id))`,
+      regex: new RegExp(`${entityVar}Repository.findOneWithEagerRelationships\\(id\\)`, 'gm'),
+      content: `${entityVar}Repository.findOneWithEagerRelationships(${entityVar}IdCipher.decrypt(id))`,
     },
   ];
 
   replaceRegexNeedles(generator, serviceImplPath, regExNeedles);
 }
+
+/* -------------------------------------------------------------------------- */
+/* java - user                                                                */
+/* -------------------------------------------------------------------------- */
 
 function convertJavaUserDTO(generator, mainJavaPackageDir, packageName) {
   const userPath = `${mainJavaPackageDir}/service/dto/UserDTO.java`;
@@ -375,7 +662,7 @@ function convertJavaUserMapper(generator, mainJavaPackageDir, packageName) {
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.UserDTO;`, 'gm'),
+      regex: new RegExp(`import ${escapeRegExp(packageName)}\\.service\\.dto\\.UserDTO;`, 'gm'),
       content: `import ${packageName}.service.cipher.UserIdCipher;\nimport ${packageName}.service.dto.UserDTO;\n`,
     },
     {
@@ -404,7 +691,7 @@ function convertJavaUserMapperTest(generator, testJavaPackageDir, packageName) {
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.UserDTO;`, 'gm'),
+      regex: new RegExp(`import ${escapeRegExp(packageName)}\\.service\\.dto\\.UserDTO;`, 'gm'),
       content: `import ${packageName}.service.cipher.UserIdCipher;\nimport ${packageName}.config.ApplicationProperties;\nimport ${packageName}.service.dto.UserDTO;\n`,
     },
     {
@@ -425,7 +712,7 @@ function convertJavaAccountResource(generator, mainJavaPackageDir, packageName) 
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.AdminUserDTO;`, 'gm'),
+      regex: new RegExp(`import ${escapeRegExp(packageName)}\\.service\\.dto\\.AdminUserDTO;`, 'gm'),
       content: `import ${packageName}.service.cipher.UserIdCipher;\nimport ${packageName}.service.dto.AdminUserDTO;\n`,
     },
     {
@@ -454,7 +741,7 @@ function convertJavaAccountResourceIT(generator, testJavaPackageDir, packageName
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.AdminUserDTO;`, 'gm'),
+      regex: new RegExp(`import ${escapeRegExp(packageName)}\\.service\\.dto\\.AdminUserDTO;`, 'gm'),
       content: `import ${packageName}.service.cipher.UserIdCipher;\nimport ${packageName}.service.dto.AdminUserDTO;\n`,
     },
     {
@@ -475,7 +762,7 @@ function convertJavaUserResource(generator, mainJavaPackageDir, packageName) {
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.AdminUserDTO;`, 'gm'),
+      regex: new RegExp(`import ${escapeRegExp(packageName)}\\.service\\.dto\\.AdminUserDTO;`, 'gm'),
       content: `import ${packageName}.service.cipher.UserIdCipher;\nimport ${packageName}.service.dto.AdminUserDTO;\n`,
     },
     {
@@ -504,7 +791,7 @@ function convertJavaUserService(generator, mainJavaPackageDir, packageName) {
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.UserDTO;`, 'gm'),
+      regex: new RegExp(`import ${escapeRegExp(packageName)}\\.service\\.dto\\.UserDTO;`, 'gm'),
       content: `import ${packageName}.service.cipher.UserIdCipher;\nimport ${packageName}.service.dto.UserDTO;\n`,
     },
     {
@@ -541,7 +828,7 @@ function convertJavaUserResourceIT(generator, testJavaPackageDir, packageName) {
 
   const regExNeedles = [
     {
-      regex: new RegExp(`import ${packageName}.service.dto.AdminUserDTO;`, 'gm'),
+      regex: new RegExp(`import ${escapeRegExp(packageName)}\\.service\\.dto\\.AdminUserDTO;`, 'gm'),
       content: `import ${packageName}.service.cipher.UserIdCipher;\nimport ${packageName}.service.dto.AdminUserDTO;\n`,
     },
     {
@@ -564,9 +851,10 @@ function convertJavaUserResourceIT(generator, testJavaPackageDir, packageName) {
       regex: /userDTO.setId\(updatedUser.getId\(\)\)/gm,
       content: `userDTO.setId(userIdCipher.encrypt(updatedUser.getId()))`,
     },
+    // Only the id of the DTO is encrypted, the id of the User entity stays numeric.
     {
-      regex: /isEqualTo\(DEFAULT_ID\)/gm,
-      content: `isEqualTo(userIdCipher.encrypt(DEFAULT_ID))`,
+      regex: /assertThat\(userDTO\.getId\(\)\)\.isEqualTo\(DEFAULT_ID\)/gm,
+      content: `assertThat(userDTO.getId()).isEqualTo(userIdCipher.encrypt(DEFAULT_ID))`,
     },
   ];
 
@@ -574,13 +862,20 @@ function convertJavaUserResourceIT(generator, testJavaPackageDir, packageName) {
 }
 
 export {
+  collectNestedDtoClasses,
   convertAngularComponent,
+  convertAngularComponentSpecs,
   convertAngularDeleteDialog,
+  convertAngularDeleteDialogSpec,
   convertAngularModel,
+  convertAngularRouteSpec,
   convertAngularService,
+  convertAngularServiceSpec,
+  convertAngularTestSamples,
+  convertAngularUpdateHtml,
+  convertAngularUser,
   convertAngularUserManagement,
   convertAngularUserManagementList,
-  convertAngularUpdateHtml,
   convertJavaAccountResource,
   convertJavaAccountResourceIT,
   convertJavaApplicationProperties,
@@ -589,6 +884,7 @@ export {
   convertJavaMapper,
   convertJavaMapperTest,
   convertJavaResource,
+  convertJavaResourceIT,
   convertJavaService,
   convertJavaUserDTO,
   convertJavaUserMapper,
@@ -596,4 +892,5 @@ export {
   convertJavaUserResource,
   convertJavaUserResourceIT,
   convertJavaUserService,
+  quoteJsonIds,
 };

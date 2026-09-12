@@ -11,12 +11,6 @@ exports[`SubGenerator encrypt-id-java of encrypt-id JHipster blueprint > run > s
   "src/main/java/com/mycompany/myapp/GeneratedByJHipster.java": {
     "stateCleared": "modified",
   },
-  "src/main/java/com/mycompany/myapp/config/EncryptIdConfiguration.java": {
-    "stateCleared": "modified",
-  },
-  "src/main/java/com/mycompany/myapp/config/package-info.java": {
-    "stateCleared": "modified",
-  },
   "src/main/java/com/mycompany/myapp/domain/Authority.java": {
     "stateCleared": "modified",
   },
