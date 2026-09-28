@@ -59,6 +59,14 @@ describe('encrypt-id JHipster blueprint', () => {
       result.assertNoFileContent(`${MAIN}/service/cipher/IdCipher.java`, 'throw new RuntimeException');
     });
 
+    it('should discard the cipher of the thread when an operation fails', () => {
+      // A failed doFinal leaves the cipher in an undefined state. Without the reset the thread
+      // rejects every following valid id of that entity until the application is restarted.
+      const cipher = `${MAIN}/service/cipher/IdCipher.java`;
+      result.assertFileContent(cipher, /catch \(Exception e\) \{\n\s*encryptCipher\.remove\(\);/);
+      result.assertFileContent(cipher, /catch \(Exception e\) \{\n\s*decryptCipher\.remove\(\);/);
+    });
+
     it('should add the key to the application properties', () => {
       result.assertFileContent(`${MAIN}/config/ApplicationProperties.java`, 'private final EncryptId encryptId = new EncryptId();');
       result.assertFileContent(`${MAIN}/config/ApplicationProperties.java`, 'public EncryptId getEncryptId()');

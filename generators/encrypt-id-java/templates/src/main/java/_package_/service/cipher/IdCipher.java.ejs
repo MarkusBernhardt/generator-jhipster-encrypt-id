@@ -13,6 +13,10 @@ import org.springframework.security.crypto.codec.Hex;
  * <p>Every entity uses its own initialization vector, so the same database id results in a different
  * encrypted id per entity. The encrypted value carries a magic number, which makes it possible to
  * detect a tampered or foreign id while decrypting.
+ *
+ * <p>The ciphers are held per thread, because a {@link Cipher} is not thread safe. A failed
+ * {@code doFinal} may leave its cipher in an undefined state, so the cipher of the thread is
+ * discarded whenever an operation fails and the next call starts with a freshly initialized one.
  */
 public class IdCipher {
 
@@ -61,6 +65,7 @@ public class IdCipher {
             byte[] encrypted = encryptCipher.get().doFinal(decrypted);
             return new String(Hex.encode(encrypted));
         } catch (Exception e) {
+            encryptCipher.remove();
             throw new IdCipherException(e.getMessage(), e);
         }
     }
@@ -82,6 +87,7 @@ public class IdCipher {
             byte[] encrypted = Hex.decode(id);
             decrypted = decryptCipher.get().doFinal(encrypted);
         } catch (Exception e) {
+            decryptCipher.remove();
             throw new IdCipherException("Id could not be decrypted!", e);
         }
 
