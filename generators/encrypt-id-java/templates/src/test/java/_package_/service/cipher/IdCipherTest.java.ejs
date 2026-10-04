@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
+import <%=packageName%>.config.ApplicationProperties;
 import java.security.MessageDigest;
+import java.util.List;
 import java.util.Locale;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
@@ -14,6 +16,7 @@ import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.codec.Hex;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import tech.jhipster.service.filter.LongFilter;
 
 /**
  * Unit tests for {@link IdCipher}.
@@ -89,6 +92,126 @@ class IdCipherTest {
         assertThat(responseStatus.code()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(responseStatus.reason()).isEqualTo(InvalidIdException.MESSAGE);
         assertThat(new InvalidIdException()).isInstanceOf(IdCipherException.class).hasNoCause();
+    }
+
+    @Test
+    void decryptsAFilterOnEncryptedIdsIntoAFilterOnDatabaseIds() {
+        EncryptedIdFilter<UserIdCipher> filter = new EncryptedIdFilter<>();
+        filter.setEquals(alphaCipher.encrypt(1L));
+        filter.setNotEquals(alphaCipher.encrypt(2L));
+        filter.setIn(List.of(alphaCipher.encrypt(3L), alphaCipher.encrypt(4L)));
+        filter.setNotIn(List.of(alphaCipher.encrypt(5L)));
+        filter.setSpecified(true);
+
+        LongFilter decrypted = alphaCipher.toLongFilter(filter);
+
+        assertThat(decrypted.getEquals()).isEqualTo(1L);
+        assertThat(decrypted.getNotEquals()).isEqualTo(2L);
+        assertThat(decrypted.getIn()).containsExactly(3L, 4L);
+        assertThat(decrypted.getNotIn()).containsExactly(5L);
+        assertThat(decrypted.getSpecified()).isTrue();
+        assertNoRange(decrypted);
+        assertThat(alphaCipher.toLongFilter(null)).isNull();
+    }
+
+    @Test
+    void treatsAnEmptyFilterValueAsNoValue() {
+        EncryptedIdFilter<UserIdCipher> filter = new EncryptedIdFilter<>();
+        filter.setEquals("");
+        filter.setNotEquals("");
+        filter.setIn(List.of("", alphaCipher.encrypt(3L)));
+        filter.setNotIn(List.of(""));
+<%_ if (encryptIdRangeFilter) { _%>
+        filter.setGreaterThan("");
+        filter.setLessThanOrEqual("");
+<%_ } _%>
+
+        LongFilter decrypted = alphaCipher.toLongFilter(filter);
+
+        assertThat(decrypted.getEquals()).isNull();
+        assertThat(decrypted.getNotEquals()).isNull();
+        assertThat(decrypted.getIn()).containsExactly(3L);
+        assertThat(decrypted.getNotIn()).isEmpty();
+        assertThat(decrypted.getSpecified()).isNull();
+        assertNoRange(decrypted);
+    }
+
+    @Test
+    void rejectsAFilterWithOneInvalidId() {
+        EncryptedIdFilter<UserIdCipher> filter = new EncryptedIdFilter<>();
+        filter.setIn(List.of(alphaCipher.encrypt(3L), betaCipher.encrypt(4L)));
+
+        assertThatThrownBy(() -> alphaCipher.toLongFilter(filter))
+            .isExactlyInstanceOf(InvalidIdException.class)
+            .hasMessage(InvalidIdException.MESSAGE)
+            .hasNoCause();
+    }
+
+<%_ if (encryptIdRangeFilter) { _%>
+    @Test
+    void decryptsTheRangeOperatorsOfAFilterOnEncryptedIds() {
+        EncryptedIdFilter<UserIdCipher> filter = new EncryptedIdFilter<>();
+        filter.setGreaterThan(alphaCipher.encrypt(1L));
+        filter.setGreaterThanOrEqual(alphaCipher.encrypt(2L));
+        filter.setLessThan(alphaCipher.encrypt(30L));
+        filter.setLessThanOrEqual(alphaCipher.encrypt(40L));
+
+        LongFilter decrypted = alphaCipher.toLongFilter(filter);
+
+        assertThat(decrypted.getGreaterThan()).isEqualTo(1L);
+        assertThat(decrypted.getGreaterThanOrEqual()).isEqualTo(2L);
+        assertThat(decrypted.getLessThan()).isEqualTo(30L);
+        assertThat(decrypted.getLessThanOrEqual()).isEqualTo(40L);
+
+        filter.setLessThan("30");
+        assertThatThrownBy(() -> alphaCipher.toLongFilter(filter)).isExactlyInstanceOf(InvalidIdException.class).hasNoCause();
+        filter.setLessThan(betaCipher.encrypt(30L));
+        assertThatThrownBy(() -> alphaCipher.toLongFilter(filter)).isExactlyInstanceOf(InvalidIdException.class).hasNoCause();
+    }
+<%_ } else { _%>
+    @Test
+    @SuppressWarnings("deprecation")
+    void rejectsRangeOperatorsOnAFilterOnEncryptedIds() {
+        EncryptedIdFilter<UserIdCipher> filter = new EncryptedIdFilter<>();
+        String encrypted = alphaCipher.encrypt(1L);
+
+        assertThatThrownBy(() -> filter.setGreaterThan(encrypted)).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> filter.setGreaterThanOrEqual(encrypted)).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> filter.setLessThan(encrypted)).isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> filter.setLessThanOrEqual(encrypted)).isInstanceOf(UnsupportedOperationException.class);
+    }
+<%_ } _%>
+
+    @Test
+    void copiesAFilterOnEncryptedIds() {
+        EncryptedIdFilter<UserIdCipher> filter = new EncryptedIdFilter<>();
+        filter.setIn(List.of(alphaCipher.encrypt(3L)));
+
+        EncryptedIdFilter<UserIdCipher> copy = filter.copy();
+
+        assertThat(copy).isEqualTo(filter).isNotSameAs(filter);
+    }
+
+    @Test
+    void decryptsAFilterWithTheCipherOfTheEntity() {
+        ApplicationProperties applicationProperties = new ApplicationProperties();
+        applicationProperties.getEncryptId().setKey(KEY);
+        UserIdCipher userIdCipher = new UserIdCipher(applicationProperties);
+        EncryptedIdFilter<UserIdCipher> filter = new EncryptedIdFilter<>();
+        filter.setEquals(userIdCipher.encrypt(7L));
+
+        assertThat(userIdCipher.decryptFilter(filter).getEquals()).isEqualTo(7L);
+        assertThat(userIdCipher.decryptFilter(null)).isNull();
+
+        filter.setEquals(alphaCipher.encrypt(7L));
+        assertThatThrownBy(() -> userIdCipher.decryptFilter(filter)).isExactlyInstanceOf(InvalidIdException.class);
+    }
+
+    private static void assertNoRange(LongFilter filter) {
+        assertThat(filter.getGreaterThan()).isNull();
+        assertThat(filter.getGreaterThanOrEqual()).isNull();
+        assertThat(filter.getLessThan()).isNull();
+        assertThat(filter.getLessThanOrEqual()).isNull();
     }
 
     private void assertInvalidId(String id) {

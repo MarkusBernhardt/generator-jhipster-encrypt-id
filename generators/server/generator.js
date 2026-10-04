@@ -24,7 +24,10 @@ export default class extends BaseApplicationGenerator {
             this.blueprintConfig.encryptIdType === 'all'
               ? this.getExistingEntities().map(e => e.name)
               : this.blueprintConfig.encryptIdEntities;
-          await this.composeWithJHipster('jhipster-encrypt-id:encrypt-id-java', { generatorOptions: { encryptIdEntities } });
+          const encryptIdRangeFilter = Boolean(this.blueprintConfig.encryptIdRangeFilter);
+          await this.composeWithJHipster('jhipster-encrypt-id:encrypt-id-java', {
+            generatorOptions: { encryptIdEntities, encryptIdRangeFilter },
+          });
         }
       },
     });

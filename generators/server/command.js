@@ -42,5 +42,13 @@ export default asCommand({
       }),
       scope: 'blueprint',
     },
+    encryptIdRangeFilter: {
+      description:
+        'Allow the range operators (greaterThan, lessThan, ...) on filters by an encrypted id. The values are encrypted ids, compared as database ids.',
+      cli: {
+        type: Boolean,
+      },
+      scope: 'blueprint',
+    },
   },
 });

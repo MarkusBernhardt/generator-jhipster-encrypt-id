@@ -2,11 +2,13 @@ package <%= packageName %>.service.cipher;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 import java.util.regex.Pattern;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.security.crypto.codec.Hex;
+import tech.jhipster.service.filter.LongFilter;
 
 /**
  * Encrypts and decrypts the database ids of an entity.
@@ -112,6 +114,50 @@ public class IdCipher {
         }
 
         return getLong(decrypted);
+    }
+
+    /**
+     * Decrypts a filter on encrypted ids into a filter on the database ids.
+     *
+     * <p>The cipher of an entity exposes this as {@code decryptFilter}, typed to the filters on its own ids, so the
+     * compiler checks that a filter is decrypted with the cipher of the entity its ids belong to.
+<%_ if (encryptIdRangeFilter) { _%>
+     * The values of the range operators are decrypted as well, so a range compares the database ids.
+<%_ } else { _%>
+     * A range operator is never set, an encrypted id has no order.
+<%_ } _%>
+     *
+     * @param filter the filter on encrypted ids, may be {@code null}
+     * @return the filter on database ids or {@code null}
+     * @throws InvalidIdException if one of the ids was not encrypted by this cipher
+     */
+    protected final LongFilter toLongFilter(EncryptedIdFilter<?> filter) {
+        if (filter == null) {
+            return null;
+        }
+
+        LongFilter decrypted = new LongFilter();
+        decrypted.setEquals(decryptValue(filter.getEquals()));
+        decrypted.setNotEquals(decryptValue(filter.getNotEquals()));
+        decrypted.setIn(decryptValues(filter.getIn()));
+        decrypted.setNotIn(decryptValues(filter.getNotIn()));
+        decrypted.setSpecified(filter.getSpecified());
+<%_ if (encryptIdRangeFilter) { _%>
+        decrypted.setGreaterThan(decryptValue(filter.getGreaterThan()));
+        decrypted.setGreaterThanOrEqual(decryptValue(filter.getGreaterThanOrEqual()));
+        decrypted.setLessThan(decryptValue(filter.getLessThan()));
+        decrypted.setLessThanOrEqual(decryptValue(filter.getLessThanOrEqual()));
+<%_ } _%>
+        return decrypted;
+    }
+
+    // An empty request parameter means "no value", exactly like for a LongFilter.
+    private Long decryptValue(String id) {
+        return id == null || id.isEmpty() ? null : decrypt(id);
+    }
+
+    private List<Long> decryptValues(List<String> ids) {
+        return ids == null ? null : ids.stream().filter(id -> id != null && !id.isEmpty()).map(this::decrypt).toList();
     }
 
     private Cipher createCipher(int mode) {

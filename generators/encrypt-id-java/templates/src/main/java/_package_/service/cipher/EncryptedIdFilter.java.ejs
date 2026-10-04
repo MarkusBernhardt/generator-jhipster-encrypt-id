@@ -1,0 +1,97 @@
+package <%=packageName%>.service.cipher;
+
+import java.io.Serial;
+<%_ if (encryptIdRangeFilter) { _%>
+import tech.jhipster.service.filter.RangeFilter;
+<%_ } else { _%>
+import tech.jhipster.service.filter.Filter;
+<%_ } _%>
+
+/**
+ * Filter on encrypted ids, used by the criteria for the id of an entity with encrypted ids and for every
+ * relationship to such an entity.
+ *
+ * <p>The filter holds the encrypted ids exactly as the API exposes them. The type parameter names the cipher of the
+ * referenced entity, and only the {@code decryptFilter} method of that cipher turns the filter into a filter on the
+ * database ids, for example {@code ClientIdCipher.decryptFilter(EncryptedIdFilter<ClientIdCipher>)}. Decrypting with
+ * the cipher of another entity does not compile. A plain database id, an id of another entity or any other invalid id
+ * is rejected with an {@link InvalidIdException}.
+ *
+<%_ if (encryptIdRangeFilter) { _%>
+ * <p>The range operators are enabled ({@code encryptIdRangeFilter}). Their values are encrypted ids as well, they are
+ * decrypted like every other value and compared as database ids, never as strings. A client can therefore only compare
+ * against ids it received before, for example as the cursor of a paging API.
+<%_ } else { _%>
+ * <p>Only {@code equals}, {@code notEquals}, {@code in}, {@code notIn} and {@code specified} are supported. An
+ * encrypted id has no order, and a range on the database ids would reveal the order and the number of the ids.
+<%_ } _%>
+ *
+ * @param <C> the cipher of the entity the ids belong to
+ */
+<%_ if (encryptIdRangeFilter) { _%>
+public class EncryptedIdFilter<C extends IdCipher> extends RangeFilter<String> {
+<%_ } else { _%>
+public class EncryptedIdFilter<C extends IdCipher> extends Filter<String> {
+<%_ } _%>
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+
+    public EncryptedIdFilter() {}
+
+    public EncryptedIdFilter(EncryptedIdFilter<C> filter) {
+        super(filter);
+    }
+
+    @Override
+    public EncryptedIdFilter<C> copy() {
+        return new EncryptedIdFilter<>(this);
+    }
+<%_ if (!encryptIdRangeFilter) { _%>
+
+    /**
+     * Range operators are not supported.
+     *
+     * @deprecated An encrypted id has no order. Always throws, so a request that uses the operator is answered with
+     *     400 instead of an unfiltered result.
+     */
+    @Deprecated
+    public void setGreaterThan(String greaterThan) {
+        throw rangeNotSupported();
+    }
+
+    /**
+     * Range operators are not supported.
+     *
+     * @deprecated see {@link #setGreaterThan(String)}
+     */
+    @Deprecated
+    public void setGreaterThanOrEqual(String greaterThanOrEqual) {
+        throw rangeNotSupported();
+    }
+
+    /**
+     * Range operators are not supported.
+     *
+     * @deprecated see {@link #setGreaterThan(String)}
+     */
+    @Deprecated
+    public void setLessThan(String lessThan) {
+        throw rangeNotSupported();
+    }
+
+    /**
+     * Range operators are not supported.
+     *
+     * @deprecated see {@link #setGreaterThan(String)}
+     */
+    @Deprecated
+    public void setLessThanOrEqual(String lessThanOrEqual) {
+        throw rangeNotSupported();
+    }
+
+    private static UnsupportedOperationException rangeNotSupported() {
+        return new UnsupportedOperationException("An encrypted id does not support range operators");
+    }
+<%_ } _%>
+}

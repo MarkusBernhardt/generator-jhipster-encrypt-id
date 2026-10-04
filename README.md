@@ -176,6 +176,124 @@ Since JHipster 9 the user administration is generated as the regular entity `Use
 `POST /api/admin/users` answers with an `AdminUserDTO` instead of the `User` entity, because the entity would
 carry the plain database id in its response.
 
+## Filtering
+
+With filtering (`filter` in the JDL, `jpaMetamodelFiltering`) every filter of a criteria that receives an encrypted
+id takes the encrypted id, exactly as the API returns it, and never the database id:
+
+- the `id` of an entity with encrypted id,
+- every relationship to an entity with encrypted id or to the `User`, of any type and on either side: Many-to-One,
+  One-to-One owner and inverse side, the back reference of a One-to-Many, Many-to-Many on both sides. This includes
+  the relationships of an entity **without** encrypted id, for example `zetaId` of an unencrypted `Zeta`.
+
+These filters are of type `EncryptedIdFilter<XIdCipher>`, a `Filter<String>` (a `RangeFilter<String>` with
+[range operators](#range-operators)). The generated `<Entity>QueryService`
+decrypts them right before the specification is built, the specification still works on the database ids:
+
+```java
+buildSpecification(clientIdCipher.decryptFilter(criteria.getDebtorId()), root -> root.join(Mandate_.debtor, JoinType.LEFT).get(Client_.id))
+```
+
+All other filters are unchanged and keep every operator of JHipster, including the ranges, for example a `Long`
+field `identifier`, the id of an entity without encrypted id and a relationship to such an entity.
+
+| Operator on an encrypted id                                        | Value                                        |
+| ------------------------------------------------------------------ | -------------------------------------------- |
+| `equals`, `notEquals`                                              | one encrypted id                             |
+| `in`, `notIn`                                                      | encrypted ids, comma separated or repeated   |
+| `specified`                                                        | `true` or `false`                            |
+| `greaterThan`, `greaterThanOrEqual`, `lessThan`, `lessThanOrEqual` | rejected, unless [enabled](#range-operators) |
+
+An empty value (`clientId.equals=`) or an empty element of a list means no value, exactly like for a `LongFilter`.
+
+| Request                                                                   | Answer                                            |
+| ------------------------------------------------------------------------- | ------------------------------------------------- |
+| encrypted id of the referenced entity                                     | `200`                                             |
+| database id, id of another entity, tampered id, upper case, anything else | `400 Invalid id`, see [Invalid ids](#invalid-ids) |
+| one invalid id in a list                                                  | `400 Invalid id` for the whole request            |
+| range operator on an encrypted id, unless [enabled](#range-operators)     | `400`, `message` is `error.validation`            |
+
+The list and the `/count` endpoint answer alike. Decryption happens before any SQL is executed.
+
+### Range operators
+
+The range operators are rejected by default. They can be enabled for all filters on encrypted ids with the option
+`--encrypt-id-range-filter`, which is stored as `encryptIdRangeFilter` in the `generator-jhipster-encrypt-id` section
+of `.yo-rc.json`:
+
+```json
+{
+  "generator-jhipster-encrypt-id": {
+    "encryptIdEnable": true,
+    "encryptIdType": "all",
+    "encryptIdRangeFilter": true
+  }
+}
+```
+
+Regenerate the application after changing it, `--no-encrypt-id-range-filter` disables it again. With the option,
+`greaterThan`, `greaterThanOrEqual`, `lessThan` and `lessThanOrEqual` take encrypted ids as well. Every value is
+decrypted with the cipher of the referenced entity and the comparison runs on the database ids, never on the
+encrypted strings. A database id, an id of another entity or any other invalid id is still answered with
+`400 Invalid id`.
+
+What this reveals: a value has to decrypt with the right cipher, so a client can only compare against ids it already
+received. A range then tells the order of these known ids and how many entities lie between them, which cursor based
+paging and `sort=id` expose anyway. Raw database ids are never accepted and never revealed. Keep the default for APIs
+that do not offer this already, and enable it for APIs with cursor based paging: a cursor `after=<encrypted id>`
+becomes `id.greaterThan=<encrypted id>`.
+
+### Choosing the cipher
+
+The cipher always comes from the entity model, never from the name of the filter: `debtorId` of a `Mandate` is
+decrypted with the `ClientIdCipher` if the relationship `debtor` references a `Client`. The own id uses the cipher of
+the entity, a relationship the cipher of the referenced entity, a relationship to the user the `UserIdCipher`.
+
+The compiler checks the choice: `EncryptedIdFilter<ClientIdCipher>` is only accepted by
+`ClientIdCipher.decryptFilter(...)`, and a query service that hands the filter to `buildSpecification` without
+decrypting it does not compile either.
+
+The ciphers are injected into `protected` fields of the query service, with setters, so the constructor of the query
+service stays as JHipster generates it.
+
+### Angular
+
+Nothing to change. The "Show ..." buttons of the generated list pages already send the encrypted id of the entity,
+for example `filter[clientId.in]=<encrypted id>`, and work with the encrypted filters as they are.
+
+### Programmatic use
+
+A criteria holds encrypted ids. Code that receives encrypted ids passes them straight through:
+
+```java
+MandateCriteria criteria = new MandateCriteria();
+criteria.debtorId().setEquals(encryptedClientId);
+```
+
+Code that only has a database id encrypts it first, `criteria.id().setEquals(clientIdCipher.encrypt(id))`. Setting a
+`Long` does not compile. Without range operators, calling a range setter compiles with a deprecation warning and
+throws.
+
+Without [range operators](#range-operators), a range on the database ids, for example for cursor based paging,
+belongs into a subclass of the query service, which can use the `protected` ciphers and `createSpecification`:
+
+```java
+LongFilter cursor = new LongFilter();
+cursor.setGreaterThan(mandateIdCipher.decrypt(after)); // an invalid cursor is answered with 400 Invalid id
+Specification<Mandate> specification = createSpecification(criteria).and(buildRangeSpecification(cursor, Mandate_.id));
+```
+
+### Known limitations
+
+- `sort=id` still orders by the database id and so reveals the order in which the entities were created. This is
+  independent of filtering.
+- Filtering by the back reference of a One-to-Many without `distinct=true` can return an entity several times, so
+  `/count` can be larger than the list. This is the behavior of JHipster.
+- A reactive application with a filter on an encrypted id is rejected by the generator.
+- After enabling the encryption for an entity, regenerate every entity that references it, otherwise their criteria
+  still take the database id. When upgrading the blueprint, regenerate all entities, every `<Entity>IdCipher` needs
+  `decryptFilter`.
+
 # Requirements and limitations
 
 An entity with an encrypted id must be configured with
@@ -185,14 +303,13 @@ An entity with an encrypted id must be configured with
 
 The generator fails with an explicit error message if one of them is missing.
 
+Filtering (`jpaMetamodelFiltering`) is supported, see [Filtering](#filtering).
+
 Not supported:
 
-- **Filtering** (`jpaMetamodelFiltering`). The generated `<Entity>Criteria` exposes the database ids as plain
-  `LongFilter`, which would allow querying and reading the unencrypted ids through the REST API. The generator fails
-  for an entity that combines an encrypted id with filtering. Entities without an encrypted id can still use
-  filtering.
 - Id types other than `Long`. `Integer` and `UUID` ids are not converted.
 - Clients other than Angular. Only the Angular client is adapted.
+- Filtering by an encrypted id in a reactive application. The generator fails with an explicit error message.
 
 # Development
 

@@ -2,11 +2,23 @@ package <%=packageName%>.service.cipher;
 
 import <%=packageName%>.config.ApplicationProperties;
 import org.springframework.stereotype.Component;
+import tech.jhipster.service.filter.LongFilter;
 
 @Component
 public class <%=persistClass%>IdCipher extends IdCipher {
 
     public <%=persistClass%>IdCipher(ApplicationProperties applicationProperties) {
         super(applicationProperties.getEncryptId().getKey(), "<%=persistClass%>");
+    }
+
+    /**
+     * Decrypts a filter on encrypted <%=persistClass%> ids into a filter on the database ids.
+     *
+     * @param filter the filter on encrypted ids, may be {@code null}
+     * @return the filter on database ids or {@code null}
+     * @throws InvalidIdException if one of the ids was not encrypted by this cipher
+     */
+    public LongFilter decryptFilter(EncryptedIdFilter<<%=persistClass%>IdCipher> filter) {
+        return toLongFilter(filter);
     }
 }
