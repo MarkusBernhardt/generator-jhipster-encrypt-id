@@ -84,7 +84,8 @@ jhipster --blueprints encrypt-id --skip-jhipster-dependencies
 
 For every entity with an encrypted id the blueprint generates an `<Entity>IdCipher` in `service/cipher`. The cipher
 encrypts the `Long` id of the database into a hex string using `AES/CBC/PKCS5Padding` and decrypts it back. The
-encrypted value carries a magic number, so a tampered or foreign id is rejected with an `IdCipherException`.
+encrypted value carries a magic number, so a tampered or foreign id is rejected with an `InvalidIdException`, see
+[Invalid ids](#invalid-ids).
 
 The `id` of the DTO becomes a `String`, the `id` of the entity stays a `Long`. The conversion happens in the MapStruct
 mapper of the entity, which is turned from an interface into an abstract class, so that it can hold the ciphers:
@@ -116,6 +117,31 @@ application:
 The blueprint writes `change me` as a placeholder into `application.yml`, `application-dev.yml` and
 `application-prod.yml`. **Replace it and keep it secret.** Changing the key invalidates every id that was handed out
 before, for example ids inside bookmarked urls.
+
+## Invalid ids
+
+An encrypted id is exactly one cipher block, written as 32 lower case hex digits. Anything else is rejected before it
+is decrypted. An id with the right format that does not decrypt to a database id of the entity is rejected as well:
+a tampered id or an id of another entity. Every invalid id fails with the same `InvalidIdException`, an
+`IdCipherException` annotated with `@ResponseStatus(code = HttpStatus.BAD_REQUEST, reason = "Invalid id")`, so the
+REST API answers `400 Invalid id`.
+
+Accepting a single block only is what rules out a padding oracle: the block in front of the decrypted one is always
+the fixed initialization vector, so a client controls nothing that is combined with it. Answering every invalid id
+identically, without a cause, is defence in depth. Up to 1.0.1 both were missing, and every endpoint that decrypts an
+id let a client recover the database id behind an encrypted id without knowing the key.
+
+The blueprint generates an `IdCipherTest` and an invalid id test in every `<Entity>ResourceIT`, which check this in
+the application.
+
+Upgrading from 1.0.1 or older:
+
+- An invalid id is answered with `400` instead of `500`, and the message and cause of the old `IdCipherException`
+  are gone. Code that catches `IdCipherException` keeps working, `InvalidIdException` extends it.
+- An upper or mixed case spelling of an encrypted id is rejected. The server always issues lower case ids, so only
+  clients that change the case are affected.
+- Ids issued before stay valid, the encryption is unchanged.
+- `src/test/java/<package>/service/cipher/IdCipherTest.java` is generated now and replaces a test of that name.
 
 ## Relationships
 

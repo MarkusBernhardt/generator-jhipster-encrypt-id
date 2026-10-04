@@ -1,0 +1,22 @@
+package <%=packageName%>.service.cipher;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+/**
+ * Thrown for an id that was not encrypted by the cipher of the entity: a plain database id, an id of another
+ * entity, a tampered id or anything else that is not an encrypted id.
+ *
+ * <p>Every invalid id fails with the same status and the same message, and the exception never carries a
+ * cause. A response that tells a padding error apart from any other invalid id would be a padding oracle,
+ * which recovers the database id behind an encrypted id without knowing the key.
+ */
+@ResponseStatus(code = HttpStatus.BAD_REQUEST, reason = InvalidIdException.MESSAGE)
+public class InvalidIdException extends IdCipherException {
+
+    public static final String MESSAGE = "Invalid id";
+
+    public InvalidIdException() {
+        super(MESSAGE);
+    }
+}
