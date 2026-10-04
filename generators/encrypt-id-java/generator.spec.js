@@ -56,17 +56,67 @@ describe('SubGenerator encrypt-id-java of encrypt-id JHipster blueprint', () => 
       );
     });
 
-    it('should reject filtering, the criteria would expose the plain ids', async () => {
+    it('should allow filtering for an entity with encrypted id', async () => {
+      await runWithEntity({
+        name: 'Alpha',
+        enableEncryptId: true,
+        dto: 'mapstruct',
+        service: 'serviceImpl',
+        jpaMetamodelFiltering: true,
+        fields: [],
+      });
+
+      // The criteria and the query service are written by spring-boot, see encrypt-id-filtering.spec.js.
+      result.assertFile('src/main/java/com/mycompany/myapp/service/cipher/EncryptedIdFilter.java');
+      result.assertFileContent(
+        'src/main/java/com/mycompany/myapp/service/cipher/AlphaIdCipher.java',
+        'public LongFilter decryptFilter(EncryptedIdFilter<AlphaIdCipher> filter)',
+      );
+    });
+
+    it('should allow range operators on filters by an encrypted id when enabled', async () => {
+      await helpers
+        .run(SUB_GENERATOR_NAMESPACE)
+        .withJHipsterConfig({}, [
+          { name: 'Alpha', enableEncryptId: true, dto: 'mapstruct', service: 'serviceImpl', jpaMetamodelFiltering: true, fields: [] },
+        ])
+        .withOptions({ creationTimestamp: '2024-02-01', ignoreNeedlesError: true, encryptIdRangeFilter: true })
+        .withJHipsterGenerators()
+        .withConfiguredBlueprint();
+
+      result.assertFileContent(
+        'src/main/java/com/mycompany/myapp/service/cipher/EncryptedIdFilter.java',
+        'public class EncryptedIdFilter<C extends IdCipher> extends RangeFilter<String>',
+      );
+    });
+
+    it('should reject range operators on filters by an encrypted id by default', async () => {
+      await runWithEntity({
+        name: 'Alpha',
+        enableEncryptId: true,
+        dto: 'mapstruct',
+        service: 'serviceImpl',
+        jpaMetamodelFiltering: true,
+        fields: [],
+      });
+
+      result.assertFileContent(
+        'src/main/java/com/mycompany/myapp/service/cipher/EncryptedIdFilter.java',
+        'public class EncryptedIdFilter<C extends IdCipher> extends Filter<String>',
+      );
+    });
+
+    it('should reject filtering by an encrypted id in a reactive application', async () => {
       await expect(
-        runWithEntity({
-          name: 'Alpha',
-          enableEncryptId: true,
-          dto: 'mapstruct',
-          service: 'serviceImpl',
-          jpaMetamodelFiltering: true,
-          fields: [],
-        }),
-      ).rejects.toThrow('Filtering is not supported for entity Alpha with encrypted id');
+        helpers
+          .run(SUB_GENERATOR_NAMESPACE)
+          .withJHipsterConfig({ reactive: true }, [
+            { name: 'Alpha', enableEncryptId: true, dto: 'mapstruct', service: 'serviceImpl', jpaMetamodelFiltering: true, fields: [] },
+          ])
+          .withOptions({ creationTimestamp: '2024-02-01', ignoreNeedlesError: true })
+          .withJHipsterGenerators()
+          .withConfiguredBlueprint(),
+      ).rejects.toThrow('Filtering by an encrypted id is not supported in a reactive application (entity Alpha)');
     });
 
     it('should allow filtering for an entity without encrypted id', async () => {

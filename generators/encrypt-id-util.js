@@ -560,6 +560,7 @@ function convertJavaResourceIT(generator, javaPackageTestDir, packageName, entit
           content,
           `
     @Test
+    @Transactional
     ${invalidIdTest} throws Exception {
         String encryptedId = ${cipherVar}.encrypt(Long.MAX_VALUE);
         String tamperedId = encryptedId.substring(0, 31) + (encryptedId.endsWith("0") ? "1" : "0");
@@ -624,6 +625,329 @@ function convertJavaService(generator, javaPackageSrcDir, packageName, entity) {
   ];
 
   replaceRegexNeedles(generator, serviceImplPath, regExNeedles);
+}
+
+/* -------------------------------------------------------------------------- */
+/* java - filtering                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** The id of an entity is encrypted if it was selected, the id of the built in user is always encrypted. */
+const hasEncryptedId = entity => Boolean(entity?.enableEncryptId || entity?.builtInUser);
+
+/**
+ * Collect every filter of the criteria of an entity that receives an encrypted id.
+ *
+ * That is the id of the entity itself if it is encrypted, and every relationship to an entity with
+ * encrypted id, independent of the type and the side of the relationship. The cipher is always the one
+ * of the referenced entity: `debtorId` of a mandate is a client id, it cannot be derived from the name.
+ *
+ * @returns {{ property: object, supplier: string, filterName: string, testVariable: string, persistClass: string, cipherClass: string, cipherVar: string, own: boolean }[]}
+ */
+function collectEncryptedIdFilters(entity) {
+  const filters = [];
+  const add = (property, testVariable, persistClass, own) =>
+    filters.push({
+      property,
+      supplier: property.propertyFilterSupplierName,
+      filterName: property.propertyJavaFilterName,
+      testVariable,
+      persistClass,
+      cipherClass: `${persistClass}IdCipher`,
+      cipherVar: cipherField(persistClass),
+      own,
+    });
+
+  if (hasEncryptedId(entity)) {
+    for (const field of (entity.fields ?? []).filter(field => field.id)) {
+      add(field, field.fieldName, entity.persistClass, true);
+    }
+  }
+  for (const relationship of entity.relationships ?? []) {
+    if (hasEncryptedId(relationship.otherEntity)) {
+      add(relationship, relationship.relationshipFieldName, relationship.otherEntity.persistClass, false);
+    }
+  }
+  return filters;
+}
+
+/** The distinct cipher classes of the entities the filters reference, in the order of their first use. */
+const filterCipherClasses = filters => [...new Set(filters.map(filter => filter.persistClass))];
+
+/** Add imports after an anchor import, in the given order and unless a class is imported already. */
+function addImports(content, anchorRegex, importedClasses) {
+  const lines = [...new Set(importedClasses)].map(importedClass => `import ${importedClass};`).filter(line => !content.includes(line));
+  if (lines.length === 0) {
+    return content;
+  }
+  return content.replace(anchorRegex, match => [match, ...lines].join('\n'));
+}
+
+/**
+ * The criteria declares the filters as `EncryptedIdFilter<XIdCipher>`, the type is set while preparing the
+ * entities. Only the imports are missing, the classes live next to the ciphers. The example of the Javadoc
+ * shows a range on a database id, it is rewritten to an encrypted id, and to `in` without range operators.
+ */
+function encryptCriteria(content, packageName, filters, { rangeFilter = false } = {}) {
+  let source = addImports(content, /import tech\.jhipster\.service\.filter\.\*;/, [
+    `${packageName}.service.cipher.EncryptedIdFilter`,
+    ...filterCipherClasses(filters).map(persistClass => `${packageName}.service.cipher.${persistClass}IdCipher`),
+  ]);
+  const ownFilter = filters.find(filter => filter.own);
+  if (ownFilter) {
+    source = source.replace(
+      new RegExp(`\\?${escapeRegExp(ownFilter.filterName)}\\.greaterThan=5&`),
+      `?${ownFilter.filterName}.${rangeFilter ? 'greaterThan' : 'in'}=<encrypted id>&`,
+    );
+  }
+  return source;
+}
+
+function convertJavaCriteria(generator, javaPackageSrcDir, packageName, entity, filters, options) {
+  const path = `${javaPackageSrcDir}/${entityDir(entity)}service/criteria/${entity.entityClass}Criteria.java`;
+  transformFile(generator, path, content => encryptCriteria(content, packageName, filters, options));
+}
+
+/**
+ * The query service decrypts every filter on an encrypted id with the cipher of the referenced entity
+ * before the specification is built. The specification itself still works on the database ids.
+ *
+ * The ciphers are injected into fields, the constructor stays untouched: subclasses of the query service and
+ * patches of an application rely on it.
+ */
+function encryptQueryService(content, packageName, filters) {
+  const ciphers = filterCipherClasses(filters)
+    .map(persistClass => ({ cipherClass: `${persistClass}IdCipher`, cipherVar: cipherField(persistClass) }))
+    .filter(({ cipherClass, cipherVar }) => !content.includes(`protected ${cipherClass} ${cipherVar};`));
+
+  let source = addImports(content, /import tech\.jhipster\.service\.QueryService;/, [
+    'org.springframework.beans.factory.annotation.Autowired',
+    ...filterCipherClasses(filters).map(persistClass => `${packageName}.service.cipher.${persistClass}IdCipher`),
+  ]);
+
+  if (ciphers.length > 0) {
+    const fields = ciphers
+      .map(
+        ({ cipherClass, cipherVar }) => `
+    @Autowired
+    protected ${cipherClass} ${cipherVar};
+
+    public void set${cipherClass}(${cipherClass} ${cipherVar}) {
+        this.${cipherVar} = ${cipherVar};
+    }
+`,
+      )
+      .join('');
+    source = source.replace(
+      /private static final Logger LOG = LoggerFactory\.getLogger\(\w+QueryService\.class\);\n/,
+      match => `${match}${fields}`,
+    );
+  }
+
+  for (const { supplier, cipherVar } of filters) {
+    source = source.replace(
+      new RegExp(`(?<!decryptFilter\\()\\bcriteria\\.${escapeRegExp(supplier)}\\(\\)`, 'g'),
+      `${cipherVar}.decryptFilter(criteria.${supplier}())`,
+    );
+  }
+  return source;
+}
+
+function convertJavaQueryService(generator, javaPackageSrcDir, packageName, entity, filters) {
+  const path = `${javaPackageSrcDir}/${entityDir(entity)}service/${entity.entityClass}QueryService.java`;
+  transformFile(generator, path, content => encryptQueryService(content, packageName, filters));
+}
+
+/**
+ * The cipher used to build an id of the wrong entity for a filter: the user cipher, or for a filter on user
+ * ids the cipher of the entity itself. Without an encrypted id of its own an entity has no other cipher.
+ */
+function foreignCipher(entity, filter) {
+  if (filter.persistClass !== 'User') return 'User';
+  return hasEncryptedId(entity) ? entity.persistClass : undefined;
+}
+
+/**
+ * The generated filter tests send database ids. They have to send ids encrypted with the cipher of the
+ * referenced entity instead, the range tests on the id are replaced, and a test of every filter on an
+ * encrypted id checks that it decrypts with the right cipher and rejects everything else.
+ */
+function encryptResourceITFiltering(content, packageName, entity, filters, { rangeFilter = false } = {}) {
+  const { entityClass, entityClassPlural, entityInstance, persistClass, persistInstance } = entity;
+  const entityPackage = entityPackageName(packageName, entity);
+  const ciphers = new Set(filters.map(filter => filter.persistClass));
+  let source = content;
+
+  for (const filter of filters) {
+    const { testVariable: variable, cipherVar } = filter;
+
+    if (filter.own) {
+      // (a) The own id: the database id becomes the encrypted id. Without range operators the range tests are
+      // replaced, with them they stay and compare encrypted ids.
+      const idDeclaration = new RegExp(`\\bLong ${variable} = ${persistInstance}\\.getId\\(\\);`);
+      if (!idDeclaration.test(source)) continue;
+      source = source.replace(idDeclaration, `String ${variable} = ${cipherVar}.encrypt(${persistInstance}.getId());`);
+      if (rangeFilter) {
+        source = source.replace(
+          new RegExp(
+            `(default${entityClass}Filtering\\(\\s*"${variable}\\.equals=" \\+ ${variable},\\s*"${variable}\\.notEquals=" \\+ ${variable}\\s*\\);)`,
+          ),
+          `$1
+
+        default${entityClass}Filtering("${variable}.in=" + ${variable}, "${variable}.notIn=" + ${variable});
+
+        default${entityClass}Filtering("${variable}.specified=true", "${variable}.specified=false");`,
+        );
+        continue;
+      }
+      source = source
+        .replace(
+          new RegExp(
+            `default${entityClass}Filtering\\(\\s*"${variable}\\.greaterThanOrEqual=" \\+ ${variable},\\s*"${variable}\\.greaterThan=" \\+ ${variable}\\s*\\);`,
+          ),
+          `default${entityClass}Filtering("${variable}.in=" + ${variable}, "${variable}.notIn=" + ${variable});`,
+        )
+        .replace(
+          new RegExp(
+            `default${entityClass}Filtering\\(\\s*"${variable}\\.lessThanOrEqual=" \\+ ${variable},\\s*"${variable}\\.lessThan=" \\+ ${variable}\\s*\\);`,
+          ),
+          `default${entityClass}Filtering("${variable}.specified=true", "${variable}.specified=false");`,
+        );
+      continue;
+    }
+
+    // (b) A relationship: the id is encrypted with the cipher of the referenced entity, the plain id is rejected.
+    const idDeclaration = new RegExp(`\\bLong ${variable}Id = ${variable}\\.getId\\(\\);`);
+    if (!idDeclaration.test(source)) continue;
+
+    source = source
+      .replace(idDeclaration, `String ${variable}Id = ${cipherVar}.encrypt(${variable}.getId());`)
+      .replace(`where ${variable} equals to (${variable}Id + 1)`, `where ${variable} equals to the encrypted id of another ${variable}`)
+      .replace(
+        new RegExp(`default${entityClass}ShouldNotBeFound\\("${variable}Id\\.equals=" \\+ \\(${variable}Id \\+ 1\\)\\);`),
+        `default${entityClass}ShouldNotBeFound("${variable}Id.equals=" + ${cipherVar}.encrypt(${variable}.getId() + 1));
+
+        // Get all the ${entityInstance}List where ${variable} equals to the plain database id
+        default${entityClass}ShouldBeRejected("${variable}Id.equals=" + ${variable}.getId());`,
+      );
+  }
+
+  // (c) Every filter on an encrypted id, including the back references JHipster generates no test for.
+  const everyFilterTest = `void getAll${entityClassPlural}ByEncryptedIdFilters()`;
+  if (!source.includes(everyFilterTest)) {
+    const [first] = filters;
+    const firstCipher = `${first.cipherVar}.encrypt(Long.MAX_VALUE)`;
+    const lines = filters.map(filter => {
+      const { filterName, cipherVar } = filter;
+      const encrypted = `${cipherVar}.encrypt(Long.MAX_VALUE)`;
+      const foreign = foreignCipher(entity, filter);
+      if (foreign) ciphers.add(foreign);
+      return [
+        ``,
+        `        // ${filterName}: decrypted with ${filter.cipherClass}, everything else is rejected`,
+        `        default${entityClass}ShouldNotBeFound("${filterName}.equals=" + ${encrypted});`,
+        `        default${entityClass}ShouldBeFound("${filterName}.equals=");`,
+        `        default${entityClass}ShouldBeRejected("${filterName}.equals=" + plainId);`,
+        `        default${entityClass}ShouldBeRejected("${filterName}.in=" + ${encrypted} + "," + plainId);`,
+        ...(foreign
+          ? [`        default${entityClass}ShouldBeRejected("${filterName}.notEquals=" + ${cipherField(foreign)}.encrypt(plainId));`]
+          : []),
+        ...(rangeFilter
+          ? [
+              `        default${entityClass}ShouldNotBeFound("${filterName}.greaterThan=" + ${encrypted});`,
+              `        default${entityClass}ShouldBeRejected("${filterName}.lessThan=" + plainId);`,
+              ...(foreign
+                ? [`        default${entityClass}ShouldBeRejected("${filterName}.lessThan=" + ${cipherField(foreign)}.encrypt(plainId));`]
+                : []),
+            ]
+          : [`        default${entityClass}RangeShouldBeRejected("${filterName}.greaterThan=" + ${encrypted});`]),
+      ].join('\n');
+    });
+    source = appendToClassBody(
+      source,
+      `
+    @Test
+    @Transactional
+    ${everyFilterTest} throws Exception {
+        // Initialize the database
+        inserted${persistClass} = ${entityInstance}Repository.saveAndFlush(${persistInstance});
+        Long plainId = ${persistInstance}.getId();
+        String encryptedId = ${firstCipher};
+
+        // A tampered id, an id of two blocks and an id in upper case are rejected like any other invalid id
+        default${entityClass}ShouldBeRejected("${first.filterName}.equals=" + encryptedId.substring(0, 31) + (encryptedId.endsWith("0") ? "1" : "0"));
+        default${entityClass}ShouldBeRejected("${first.filterName}.equals=" + encryptedId + encryptedId);
+        default${entityClass}ShouldBeRejected("${first.filterName}.equals=" + encryptedId.toUpperCase(Locale.ROOT));
+${lines.join('\n')}
+    }`,
+    );
+  }
+
+  // (d) The helpers of the rejection tests, the range rejection only without range operators.
+  if (!source.includes(`private void default${entityClass}ShouldBeRejected(`)) {
+    source = appendToClassBody(
+      source,
+      `
+    /**
+     * Executes the search with an invalid id, and checks that it is rejected without telling why.
+     */
+    private void default${entityClass}ShouldBeRejected(String filter) throws Exception {
+        rest${entityClass}MockMvc
+            .perform(get(ENTITY_API_URL + "?" + filter))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.title").value("Invalid id"))
+            .andExpect(jsonPath("$.detail").value("Invalid id"));
+
+        rest${entityClass}MockMvc
+            .perform(get(ENTITY_API_URL + "/count?" + filter))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.title").value("Invalid id"))
+            .andExpect(jsonPath("$.detail").value("Invalid id"));
+    }`,
+    );
+  }
+  if (!rangeFilter && !source.includes(`private void default${entityClass}RangeShouldBeRejected(`)) {
+    source = appendToClassBody(
+      source,
+      `
+    /**
+     * Executes the search with a range on an encrypted id, and checks that it is rejected instead of ignored.
+     */
+    private void default${entityClass}RangeShouldBeRejected(String filter) throws Exception {
+        rest${entityClass}MockMvc
+            .perform(get(ENTITY_API_URL + "?" + filter))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("error.validation"));
+
+        rest${entityClass}MockMvc
+            .perform(get(ENTITY_API_URL + "/count?" + filter))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("error.validation"));
+    }`,
+    );
+  }
+
+  // (e) and (f) Every cipher used by the tests, autowired once and imported.
+  const sortedCiphers = [...ciphers].sort();
+  const missingCiphers = sortedCiphers
+    .map(cipherClass => ({ cipherClass: `${cipherClass}IdCipher`, cipherVar: cipherField(cipherClass) }))
+    .filter(({ cipherClass, cipherVar }) => !source.includes(`private ${cipherClass} ${cipherVar};`));
+  source = addImports(source, new RegExp(`import ${escapeRegExp(entityPackage)}\\.repository\\.${entityClass}Repository;`), [
+    ...sortedCiphers.map(cipherClass => `${packageName}.service.cipher.${cipherClass}IdCipher`),
+    'java.util.Locale',
+  ]);
+  if (missingCiphers.length > 0) {
+    source = source.replace(new RegExp(`private MockMvc rest${entityClass}MockMvc;`), match =>
+      [match, ...missingCiphers.map(({ cipherClass, cipherVar }) => `\n    @Autowired\n    private ${cipherClass} ${cipherVar};`)].join(
+        '\n',
+      ),
+    );
+  }
+  return source;
+}
+
+function convertJavaResourceITFiltering(generator, javaPackageTestDir, packageName, entity, filters, options) {
+  const path = `${javaPackageTestDir}/${entityDir(entity)}web/rest/${entity.entityClass}ResourceIT.java`;
+  transformFile(generator, path, content => encryptResourceITFiltering(content, packageName, entity, filters, options));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -908,6 +1232,7 @@ function convertJavaUserResourceIT(generator, javaPackageTestDir, packageName) {
 
 export {
   addConstructorParameter,
+  collectEncryptedIdFilters,
   collectNestedDtoClasses,
   convertAngularDeleteDialog,
   convertAngularDeleteDialogSpec,
@@ -922,12 +1247,15 @@ export {
   convertJavaAccountResourceIT,
   convertJavaApplicationProperties,
   convertJavaApplicationYml,
+  convertJavaCriteria,
   convertJavaDto,
   convertJavaMapper,
   convertJavaMapperTest,
   convertJavaPublicUserResourceIT,
+  convertJavaQueryService,
   convertJavaResource,
   convertJavaResourceIT,
+  convertJavaResourceITFiltering,
   convertJavaService,
   convertJavaUserDTO,
   convertJavaUserMapper,
@@ -935,5 +1263,9 @@ export {
   convertJavaUserResource,
   convertJavaUserResourceIT,
   convertJavaUserService,
+  encryptCriteria,
+  encryptQueryService,
+  encryptResourceITFiltering,
+  hasEncryptedId,
   quoteObjectIds,
 };

@@ -104,5 +104,18 @@ const entities = [
 
 const encryptedEntityNames = entities.filter(entity => entity.enableEncryptId).map(entity => entity.name);
 
+/**
+ * The same model with filtering for some of the entities.
+ *
+ * Alpha filters by every relationship type, the user and the unencrypted Zeta. Beta, Gamma and Zeta cover
+ * the inverse sides: One-to-One, the back reference of a Many-to-One and a relationship of an entity without
+ * encrypted id to an entity with encrypted id. Delta and Epsilon are not filtered, Alpha still filters by them.
+ */
+const filteredEntityNames = ['Alpha', 'Beta', 'Gamma', 'Zeta'];
+
+const filteredEntities = entities.map(entity =>
+  filteredEntityNames.includes(entity.name) ? { ...entity, jpaMetamodelFiltering: true, pagination: 'pagination' } : entity,
+);
+
 export default entities;
-export { encryptedEntityNames };
+export { encryptedEntityNames, filteredEntities, filteredEntityNames };

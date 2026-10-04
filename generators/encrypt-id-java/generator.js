@@ -8,6 +8,11 @@ export default class extends BaseApplicationGenerator {
     await this.dependsOnJHipster('java');
   }
 
+  /** Range operators on filters by an encrypted id, off unless enabled with `--encrypt-id-range-filter`. */
+  get encryptIdRangeFilter() {
+    return Boolean(this.options.encryptIdRangeFilter ?? this.blueprintConfig?.encryptIdRangeFilter);
+  }
+
   get [BaseApplicationGenerator.CONFIGURING_EACH_ENTITY]() {
     return this.asConfiguringEachEntityTaskGroup({
       async configuringEachEntityTemplateTask({ entityName, entityConfig }) {
@@ -22,11 +27,31 @@ export default class extends BaseApplicationGenerator {
         if (entityConfig.service !== 'serviceImpl') {
           throw new Error(`Service with serviceImpl required for entity ${entityName}`);
         }
+      },
+    });
+  }
 
-        // The generated criteria expose the database ids as plain LongFilter, which would
-        // defeat the encryption of the ids.
-        if (entityConfig.jpaMetamodelFiltering) {
-          throw new Error(`Filtering is not supported for entity ${entityName} with encrypted id`);
+  get [BaseApplicationGenerator.POST_PREPARING_EACH_ENTITY]() {
+    return this.asPostPreparingEachEntityTaskGroup({
+      async encryptedIdFilterTypesTask({ application, entity }) {
+        if (!entity.jpaMetamodelFiltering || entity.builtIn) return;
+
+        // A criteria receives the ids from the request. Every filter on an encrypted id, the id of the entity
+        // itself and every relationship to an entity with encrypted id, takes the encrypted ids as strings
+        // instead of the database ids. The query service decrypts them with the cipher of the referenced entity.
+        // JHipster copies the filter type of a relationship from the id of the referenced entity while preparing
+        // the relationships, so the type is replaced afterwards, from the entity model and never from a name.
+        const filters = encryptdUtil.collectEncryptedIdFilters(entity);
+        if (filters.length === 0) return;
+
+        // JHipster writes a criteria for a reactive application as well, but its query side is not converted.
+        // Fail loudly instead of generating code that does not compile or leaks the database ids.
+        if (application.reactive) {
+          throw new Error(`Filtering by an encrypted id is not supported in a reactive application (entity ${entity.name})`);
+        }
+
+        for (const filter of filters) {
+          filter.property.propertyJavaFilterType = `EncryptedIdFilter<${filter.cipherClass}>`;
         }
       },
     });
@@ -39,6 +64,7 @@ export default class extends BaseApplicationGenerator {
           blocks: [
             javaMainPackageTemplatesBlock({
               templates: [
+                'service/cipher/EncryptedIdFilter.java',
                 'service/cipher/IdCipher.java',
                 'service/cipher/IdCipherException.java',
                 'service/cipher/InvalidIdException.java',
@@ -48,7 +74,7 @@ export default class extends BaseApplicationGenerator {
               templates: ['service/cipher/IdCipherTest.java'],
             }),
           ],
-          context: application,
+          context: { ...application, encryptIdRangeFilter: this.encryptIdRangeFilter },
         });
 
         await Promise.all(
@@ -89,7 +115,7 @@ export default class extends BaseApplicationGenerator {
 
   get [BaseApplicationGenerator.POST_WRITING_ENTITIES]() {
     return this.asPostWritingEntitiesTaskGroup({
-      async postWritingEntitiesTemplateTask({ application: { javaPackageSrcDir, javaPackageTestDir, packageName }, entities }) {
+      async postWritingEntitiesTemplateTask({ application: { javaPackageSrcDir, javaPackageTestDir, packageName, reactive }, entities }) {
         // The id of the built in User entity is always encrypted, so relationships to it have to be encrypted too.
         const encryptedClasses = new Set(entities.filter(e => e.enableEncryptId).map(e => e.persistClass));
         encryptedClasses.add('User');
@@ -101,6 +127,21 @@ export default class extends BaseApplicationGenerator {
           encryptdUtil.convertJavaResource(this, javaPackageSrcDir, packageName, entity);
           encryptdUtil.convertJavaResourceIT(this, javaPackageTestDir, packageName, entity);
           encryptdUtil.convertJavaService(this, javaPackageSrcDir, packageName, entity);
+        }
+
+        // Filtering is converted for every entity: an entity without encrypted id can still filter by a
+        // relationship to an entity with encrypted id. A reactive application was rejected while preparing.
+        for (const entity of entities.filter(e => e.jpaMetamodelFiltering && !e.builtIn && !reactive)) {
+          const filters = encryptdUtil.collectEncryptedIdFilters(entity);
+          if (filters.length === 0) continue;
+
+          encryptdUtil.convertJavaCriteria(this, javaPackageSrcDir, packageName, entity, filters, {
+            rangeFilter: this.encryptIdRangeFilter,
+          });
+          encryptdUtil.convertJavaQueryService(this, javaPackageSrcDir, packageName, entity, filters);
+          encryptdUtil.convertJavaResourceITFiltering(this, javaPackageTestDir, packageName, entity, filters, {
+            rangeFilter: this.encryptIdRangeFilter,
+          });
         }
       },
     });

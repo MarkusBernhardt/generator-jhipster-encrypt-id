@@ -41,7 +41,22 @@ describe('encrypt-id JHipster blueprint', () => {
       result.assertFile(`${MAIN}/service/cipher/IdCipher.java`);
       result.assertFile(`${MAIN}/service/cipher/IdCipherException.java`);
       result.assertFile(`${MAIN}/service/cipher/InvalidIdException.java`);
+      result.assertFile(`${MAIN}/service/cipher/EncryptedIdFilter.java`);
       result.assertFile(`${TEST}/service/cipher/IdCipherTest.java`);
+    });
+
+    it('should decrypt a filter on encrypted ids with the cipher of the entity', () => {
+      result.assertFileContent(
+        `${MAIN}/service/cipher/IdCipher.java`,
+        'protected final LongFilter toLongFilter(EncryptedIdFilter<?> filter)',
+      );
+      result.assertFileContent(`${MAIN}/service/cipher/IdCipher.java`, 'import tech.jhipster.service.filter.LongFilter;');
+      for (const persistClass of ['Alpha', 'User']) {
+        result.assertFileContent(
+          `${MAIN}/service/cipher/${persistClass}IdCipher.java`,
+          `public LongFilter decryptFilter(EncryptedIdFilter<${persistClass}IdCipher> filter) {\n        return toLongFilter(filter);`,
+        );
+      }
     });
 
     it('should not write a cipher for an entity without encrypted id', () => {
@@ -320,7 +335,8 @@ describe('encrypt-id JHipster blueprint', () => {
     });
 
     it('should answer every invalid id with 400 Invalid id', () => {
-      result.assertFileContent(resourceIT, 'void getInvalidAlphaId() throws Exception {');
+      // Transactional: the entity of a required relationship is persisted before every test.
+      result.assertFileContent(resourceIT, /@Test\n\s*@Transactional\n\s*void getInvalidAlphaId\(\) throws Exception \{/);
       result.assertFileContent(
         resourceIT,
         'for (String id : new String[] { String.valueOf(Long.MAX_VALUE), tamperedId, encryptedId + encryptedId }) {',
