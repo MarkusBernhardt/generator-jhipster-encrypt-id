@@ -550,6 +550,30 @@ function convertJavaResourceIT(generator, javaPackageTestDir, packageName, entit
       expression.startsWith(`${dtoVar}.`) ? match : `ENTITY_API_URL_ID, ${cipherVar}.encrypt(${expression})`,
     ),
   );
+
+  // Guards the http side of the cipher: every invalid id is answered with the same 400, without telling why.
+  const invalidIdTest = `void getInvalid${persistClass}Id()`;
+  transformFile(generator, resourceITPath, content =>
+    !content.includes('ENTITY_API_URL_ID') || !content.includes(`rest${persistClass}MockMvc`) || content.includes(invalidIdTest)
+      ? content
+      : appendToClassBody(
+          content,
+          `
+    @Test
+    ${invalidIdTest} throws Exception {
+        String encryptedId = ${cipherVar}.encrypt(Long.MAX_VALUE);
+        String tamperedId = encryptedId.substring(0, 31) + (encryptedId.endsWith("0") ? "1" : "0");
+        // A plain database id, a tampered id and an id of two blocks are all rejected alike.
+        for (String id : new String[] { String.valueOf(Long.MAX_VALUE), tamperedId, encryptedId + encryptedId }) {
+            rest${persistClass}MockMvc
+                .perform(get(ENTITY_API_URL_ID, id))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid id"))
+                .andExpect(jsonPath("$.detail").value("Invalid id"));
+        }
+    }`,
+        ),
+  );
 }
 
 function convertJavaService(generator, javaPackageSrcDir, packageName, entity) {

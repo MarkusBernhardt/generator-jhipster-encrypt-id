@@ -40,6 +40,8 @@ describe('encrypt-id JHipster blueprint', () => {
       }
       result.assertFile(`${MAIN}/service/cipher/IdCipher.java`);
       result.assertFile(`${MAIN}/service/cipher/IdCipherException.java`);
+      result.assertFile(`${MAIN}/service/cipher/InvalidIdException.java`);
+      result.assertFile(`${TEST}/service/cipher/IdCipherTest.java`);
     });
 
     it('should not write a cipher for an entity without encrypted id', () => {
@@ -54,9 +56,57 @@ describe('encrypt-id JHipster blueprint', () => {
       result.assertFileContent(`${MAIN}/service/cipher/BetaIdCipher.java`, 'super(applicationProperties.getEncryptId().getKey(), "Beta")');
     });
 
-    it('should report a tampered id as IdCipherException', () => {
-      result.assertFileContent(`${MAIN}/service/cipher/IdCipher.java`, 'throw new IdCipherException("Decrypted magic not matched!");');
-      result.assertNoFileContent(`${MAIN}/service/cipher/IdCipher.java`, 'throw new RuntimeException');
+    it('should only decrypt an id of one block written as lower case hex', () => {
+      const cipher = `${MAIN}/service/cipher/IdCipher.java`;
+      result.assertFileContent(cipher, 'Pattern.compile("[0-9a-f]{32}")');
+      result.assertFileContent(cipher, /if \(!ENCRYPTED_ID\.matcher\(id\)\.matches\(\)\) \{\n\s*throw new InvalidIdException\(\);/);
+    });
+
+    it('should check the format right before decrypting', () => {
+      // Rejecting everything but one block before decrypting is what rules out the padding oracle.
+      result.assertFileContent(
+        `${MAIN}/service/cipher/IdCipher.java`,
+        /if \(!ENCRYPTED_ID\.matcher\(id\)\.matches\(\)\) \{\n\s*throw new InvalidIdException\(\);\n\s*\}\n\n(\s*\/\/.*\n)?\s*Cipher cipher = decryptCipher\.get\(\);\n\s*byte\[\] decrypted;\n\s*try \{\n\s*decrypted = cipher\.doFinal\(Hex\.decode\(id\)\);/,
+      );
+    });
+
+    it('should reject every invalid id with the same exception and without a cause', () => {
+      // Telling a padding error apart from another invalid id would make the cipher a padding oracle.
+      const cipher = `${MAIN}/service/cipher/IdCipher.java`;
+      result.assertFileContent(cipher, /decryptCipher\.remove\(\);\n(\s*\/\/.*\n)?\s*throw new InvalidIdException\(\);/);
+      result.assertFileContent(
+        cipher,
+        /if \(decrypted\.length != PAYLOAD_LENGTH \|\| getMagic\(decrypted\) != MAGIC\) \{\n\s*throw new InvalidIdException\(\);/,
+      );
+      result.assertNoFileContent(cipher, 'Id could not be decrypted!');
+      result.assertNoFileContent(cipher, 'Decrypted magic not matched!');
+      result.assertNoFileContent(cipher, 'throw new RuntimeException');
+    });
+
+    it('should answer an invalid id with 400 Invalid id', () => {
+      const exception = `${MAIN}/service/cipher/InvalidIdException.java`;
+      result.assertFileContent(exception, '@ResponseStatus(code = HttpStatus.BAD_REQUEST, reason = InvalidIdException.MESSAGE)');
+      result.assertFileContent(exception, 'public class InvalidIdException extends IdCipherException {');
+      result.assertFileContent(exception, 'public static final String MESSAGE = "Invalid id";');
+      result.assertFileContent(exception, /public InvalidIdException\(\) \{\n\s*super\(MESSAGE\);/);
+    });
+
+    it('should test the cipher in the generated application', () => {
+      const test = `${TEST}/service/cipher/IdCipherTest.java`;
+      result.assertFileContent(test, 'package com.mycompany.myapp.service.cipher;');
+      result.assertFileContent(test, 'void rejectsPaddingLengthAndMagicErrorsIdentically()');
+      result.assertFileContent(test, 'void stillDecryptsAfterRejectingInvalidIds()');
+      result.assertFileContent(
+        test,
+        /\.isExactlyInstanceOf\(InvalidIdException\.class\)\n\s*\.hasMessage\(InvalidIdException\.MESSAGE\)\n\s*\.hasNoCause\(\);/,
+      );
+      result.assertFileContent(test, 'assertInvalidId(encrypted.toUpperCase(Locale.ROOT));');
+      result.assertFileContent(test, 'assertInvalidId(encrypted + encrypted);');
+      result.assertFileContent(test, 'assertInvalidId(betaCipher.encrypt(7L));');
+      result.assertFileContent(test, 'assertInvalidId(encryptRaw("AES/CBC/NoPadding", new byte[16]));');
+      result.assertFileContent(test, 'assertInvalidId(encryptRaw("AES/CBC/PKCS5Padding", new byte[14]));');
+      result.assertFileContent(test, 'assertInvalidId(encryptRaw("AES/CBC/PKCS5Padding", new byte[15]));');
+      result.assertFileContent(test, 'assertThat(responseStatus.code()).isEqualTo(HttpStatus.BAD_REQUEST);');
     });
 
     it('should discard the cipher of the thread when an operation fails', () => {
@@ -267,6 +317,16 @@ describe('encrypt-id JHipster blueprint', () => {
     it('should send an encrypted id for a partial update', () => {
       result.assertFileContent(resourceIT, 'patch(ENTITY_API_URL_ID, alphaIdCipher.encrypt(partialUpdatedAlpha.getId()))');
       result.assertFileContent(resourceIT, 'om.writeValueAsBytes(alphaMapper.toDto(partialUpdatedAlpha))');
+    });
+
+    it('should answer every invalid id with 400 Invalid id', () => {
+      result.assertFileContent(resourceIT, 'void getInvalidAlphaId() throws Exception {');
+      result.assertFileContent(
+        resourceIT,
+        'for (String id : new String[] { String.valueOf(Long.MAX_VALUE), tamperedId, encryptedId + encryptedId }) {',
+      );
+      result.assertFileContent(resourceIT, /\.perform\(get\(ENTITY_API_URL_ID, id\)\)\n\s*\.andExpect\(status\(\)\.isBadRequest\(\)\)/);
+      result.assertFileContent(resourceIT, 'jsonPath("$.detail").value("Invalid id")');
     });
 
     it('should keep the integration test of an entity without encrypted id untouched', () => {

@@ -1,5 +1,5 @@
 import BaseApplicationGenerator from 'generator-jhipster/generators/base-application';
-import { javaMainPackageTemplatesBlock } from 'generator-jhipster/generators/java/support';
+import { javaMainPackageTemplatesBlock, javaTestPackageTemplatesBlock } from 'generator-jhipster/generators/java/support';
 
 import * as encryptdUtil from '../encrypt-id-util.js';
 
@@ -38,7 +38,14 @@ export default class extends BaseApplicationGenerator {
         await this.writeFiles({
           blocks: [
             javaMainPackageTemplatesBlock({
-              templates: ['service/cipher/IdCipher.java', 'service/cipher/IdCipherException.java'],
+              templates: [
+                'service/cipher/IdCipher.java',
+                'service/cipher/IdCipherException.java',
+                'service/cipher/InvalidIdException.java',
+              ],
+            }),
+            javaTestPackageTemplatesBlock({
+              templates: ['service/cipher/IdCipherTest.java'],
             }),
           ],
           context: application,

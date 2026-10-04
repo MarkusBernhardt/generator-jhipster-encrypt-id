@@ -1,0 +1,110 @@
+package <%=packageName%>.service.cipher;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Locale;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import org.junit.jupiter.api.Test;
+import org.springframework.core.annotation.AnnotationUtils;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.codec.Hex;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+/**
+ * Unit tests for {@link IdCipher}.
+ */
+class IdCipherTest {
+
+    private static final String KEY = "test-key";
+
+    private final IdCipher alphaCipher = new IdCipher(KEY, "Alpha");
+
+    private final IdCipher betaCipher = new IdCipher(KEY, "Beta");
+
+    @Test
+    void encryptsToOneBlockOfLowerCaseHexAndDecryptsBack() {
+        String encrypted = alphaCipher.encrypt(7L);
+
+        assertThat(encrypted).matches("[0-9a-f]{32}");
+        assertThat(alphaCipher.decrypt(encrypted)).isEqualTo(7L);
+        assertThat(alphaCipher.encrypt(null)).isNull();
+        assertThat(alphaCipher.decrypt(null)).isNull();
+    }
+
+    @Test
+    void encryptsTheSameIdDifferentlyPerEntity() {
+        assertThat(alphaCipher.encrypt(7L)).isNotEqualTo(betaCipher.encrypt(7L));
+    }
+
+    @Test
+    void rejectsEverythingThatIsNotAnEncryptedIdOfTheEntity() {
+        String encrypted = alphaCipher.encrypt(7L);
+
+        assertInvalidId("7");
+        assertInvalidId("");
+        assertInvalidId(encrypted.toUpperCase(Locale.ROOT));
+        assertInvalidId(encrypted + encrypted);
+        assertInvalidId(encrypted.substring(1));
+        assertInvalidId("g" + encrypted.substring(1));
+        assertInvalidId(betaCipher.encrypt(7L));
+    }
+
+    /**
+     * A padding error, a wrong length and a wrong magic number must be indistinguishable for a caller,
+     * otherwise the cipher is a padding oracle.
+     */
+    @Test
+    void rejectsPaddingLengthAndMagicErrorsIdentically() throws Exception {
+        // 16 zero bytes without padding: the last byte is no valid PKCS5 padding
+        assertInvalidId(encryptRaw("AES/CBC/NoPadding", new byte[16]));
+        // valid padding, but 14 instead of 15 bytes
+        assertInvalidId(encryptRaw("AES/CBC/PKCS5Padding", new byte[14]));
+        // valid padding and length, but no magic number
+        assertInvalidId(encryptRaw("AES/CBC/PKCS5Padding", new byte[15]));
+    }
+
+    @Test
+    void stillDecryptsAfterRejectingInvalidIds() throws Exception {
+        String encrypted = alphaCipher.encrypt(7L);
+
+        assertInvalidId(betaCipher.encrypt(7L));
+        assertInvalidId(encryptRaw("AES/CBC/NoPadding", new byte[16]));
+
+        for (long id = 1; id <= 10; id++) {
+            assertThat(alphaCipher.decrypt(alphaCipher.encrypt(id))).isEqualTo(id);
+        }
+        assertThat(alphaCipher.decrypt(encrypted)).isEqualTo(7L);
+    }
+
+    @Test
+    void answersAnInvalidIdWithBadRequest() {
+        ResponseStatus responseStatus = AnnotationUtils.findAnnotation(InvalidIdException.class, ResponseStatus.class);
+
+        assertThat(responseStatus).isNotNull();
+        assertThat(responseStatus.code()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(responseStatus.reason()).isEqualTo(InvalidIdException.MESSAGE);
+        assertThat(new InvalidIdException()).isInstanceOf(IdCipherException.class).hasNoCause();
+    }
+
+    private void assertInvalidId(String id) {
+        assertThatThrownBy(() -> alphaCipher.decrypt(id))
+            .as("decrypt(\"%s\")", id)
+            .isExactlyInstanceOf(InvalidIdException.class)
+            .hasMessage(InvalidIdException.MESSAGE)
+            .hasNoCause();
+    }
+
+    /** Encrypts a payload with the key and initialization vector of {@link #alphaCipher}, bypassing its format. */
+    private static String encryptRaw(String transformation, byte[] payload) throws Exception {
+        byte[] key = MessageDigest.getInstance("SHA-256").digest(KEY.getBytes(StandardCharsets.UTF_8));
+        byte[] iv = MessageDigest.getInstance("MD5").digest("Alpha".getBytes(StandardCharsets.UTF_8));
+        Cipher cipher = Cipher.getInstance(transformation);
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+        return new String(Hex.encode(cipher.doFinal(payload)));
+    }
+}
